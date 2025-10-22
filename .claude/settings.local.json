@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Read(//c/Users/wdom/Downloads/Server setup/5-Services-Deployment/supabase/**)",
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(npm view:*)",
+      "Bash(npx -y @smithery/cli install @HenkDz/selfhosted-supabase-mcp --client claude)",
+      "Bash(git clone:*)",
+      "Bash(cd:*)",
+      "Bash(npm run build:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(npx:*)",
+      "mcp__selfhosted-supabase__list_tables"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
+}
