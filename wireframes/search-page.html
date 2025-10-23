@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kookboek - Recepten</title>
+
+    <!-- Tailwind CSS v4 via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Complete globals.css theme inline */
+        :root {
+            --background: oklch(1.0000 0 0);
+            --foreground: oklch(0.1496 0 0);
+            --card: oklch(0.9746 0.0021 197.1218);
+            --card-foreground: oklch(0.1496 0 0);
+            --popover: oklch(1.0000 0 0);
+            --popover-foreground: oklch(0.1496 0 0);
+            --primary: oklch(0.6389 0.1202 175.2876);
+            --primary-foreground: oklch(1.0000 0 0);
+            --secondary: oklch(0.9746 0.0021 197.1218);
+            --secondary-foreground: oklch(0.3441 0.1684 262.6926);
+            --muted: oklch(0.9746 0.0021 197.1218);
+            --muted-foreground: oklch(0.5498 0.0571 256.7089);
+            --accent: oklch(0.5297 0.0901 199.7879);
+            --accent-foreground: oklch(1.0000 0 0);
+            --destructive: oklch(0.6496 0.2362 26.9032);
+            --destructive-foreground: oklch(1.0000 0 0);
+            --border: oklch(0.9274 0.0178 253.3431);
+            --input: oklch(0.9274 0.0178 253.3431);
+            --ring: oklch(0.6389 0.1202 175.2876);
+            --chart-1: oklch(0.6389 0.1202 175.2876);
+            --chart-2: oklch(0.5297 0.0901 199.7879);
+            --chart-3: oklch(0.4413 0.0527 256.8598);
+            --chart-4: oklch(0.7061 0.0488 256.4992);
+            --chart-5: oklch(0.8673 0.0269 251.6859);
+            --radius: 0.5rem;
+            --sidebar: oklch(0.9746 0.0021 197.1218);
+            --sidebar-foreground: oklch(0.1496 0 0);
+            --sidebar-primary: oklch(0.6389 0.1202 175.2876);
+            --sidebar-primary-foreground: oklch(1.0000 0 0);
+            --sidebar-accent: oklch(0.5297 0.0901 199.7879);
+            --sidebar-accent-foreground: oklch(1.0000 0 0);
+            --sidebar-border: oklch(0.9274 0.0178 253.3431);
+            --sidebar-ring: oklch(0.6389 0.1202 175.2876);
+            --font-sans: Inter;
+            --font-serif: Montserrat;
+            --font-mono: monospace;
+            --shadow-color: #000000;
+            --shadow-opacity: 0.1;
+            --shadow-blur: 10px;
+            --shadow-spread: 0px;
+            --shadow-offset-x: 0px;
+            --shadow-offset-y: 4px;
+            --letter-spacing: normal;
+            --spacing: 0.25rem;
+            --shadow-2xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.05);
+            --shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.05);
+            --shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+            --shadow: 0px 4px 10px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+            --shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.10), 0px 2px 4px -1px hsl(0 0% 0% / 0.10);
+            --shadow-lg: 0px 4px 10px 0px hsl(0 0% 0% / 0.10), 0px 4px 6px -1px hsl(0 0% 0% / 0.10);
+            --shadow-xl: 0px 4px 10px 0px hsl(0 0% 0% / 0.10), 0px 8px 10px -1px hsl(0 0% 0% / 0.10);
+            --shadow-2xl: 0px 4px 10px 0px hsl(0 0% 0% / 0.25);
+            --tracking-normal: normal;
+        }
+
+        .dark {
+            --background: oklch(0.1496 0 0);
+            --foreground: oklch(0.9746 0.0021 197.1218);
+            --card: oklch(0.2264 0 0);
+            --card-foreground: oklch(0.9746 0.0021 197.1218);
+            --popover: oklch(0.1496 0 0);
+            --popover-foreground: oklch(0.9746 0.0021 197.1218);
+            --primary: oklch(0.6389 0.1202 175.2876);
+            --primary-foreground: oklch(1.0000 0 0);
+            --secondary: oklch(0.2707 0.0092 285.7705);
+            --secondary-foreground: oklch(0.9746 0.0021 197.1218);
+            --muted: oklch(0.2707 0.0092 285.7705);
+            --muted-foreground: oklch(0.7066 0.0188 285.9101);
+            --accent: oklch(0.5297 0.0901 199.7879);
+            --accent-foreground: oklch(1.0000 0 0);
+            --destructive: oklch(0.4205 0.1668 28.5048);
+            --destructive-foreground: oklch(0.9746 0.0021 197.1218);
+            --border: oklch(0.2707 0.0092 285.7705);
+            --input: oklch(0.2707 0.0092 285.7705);
+            --ring: oklch(0.6389 0.1202 175.2876);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans), Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
+            line-height: 1.6;
+        }
+
+        /* Custom component styles */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            outline: none;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+            padding: 0.625rem 1.25rem;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--foreground);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+        }
+
+        .btn-outline:hover {
+            background-color: var(--accent);
+            color: var(--accent-foreground);
+        }
+
+        .btn-outline.active {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+            border-color: var(--primary);
+        }
+
+        .card {
+            background-color: var(--card);
+            color: var(--card-foreground);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .input {
+            width: 100%;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background-color: var(--background);
+            color: var(--foreground);
+            padding: 0.625rem 1rem;
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input:focus {
+            border-color: var(--ring);
+            box-shadow: 0 0 0 3px oklch(0.6389 0.1202 175.2876 / 0.1);
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border);
+            background-color: white;
+            color: var(--foreground);
+        }
+
+        .filter-chip:hover {
+            border-color: var(--primary);
+            background-color: oklch(0.6389 0.1202 175.2876 / 0.05);
+        }
+
+        .filter-chip.active {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+            border-color: var(--primary);
+            font-weight: 500;
+        }
+
+        .filter-section-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--muted-foreground);
+            margin-bottom: 0.75rem;
+        }
+
+        .filter-dropdown-container {
+            position: relative;
+        }
+
+        .filter-dropdown {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            left: 0;
+            z-index: 50;
+            min-width: 280px;
+            background-color: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 0.75rem;
+        }
+
+        .filter-dropdown-content {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .filter-dropdown-section {
+            padding: 0.5rem 0;
+        }
+
+        .filter-dropdown-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            padding: 0.25rem 0;
+        }
+
+        .filter-dropdown-options {
+            margin-top: 0.5rem;
+            margin-left: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-dropdown-options label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            padding: 0.25rem 0;
+        }
+
+        .filter-dropdown-options label:hover {
+            color: var(--primary);
+        }
+
+        .checkbox-small {
+            width: 1rem;
+            height: 1rem;
+            cursor: pointer;
+        }
+
+        .separator-light {
+            height: 1px;
+            background-color: var(--border);
+            margin: 0.5rem 0;
+        }
+
+        .recipe-card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .heart-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .heart-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .heart-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        .search-icon, .upload-icon, .filter-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            background-color: var(--secondary);
+            color: var(--secondary-foreground);
+        }
+
+        .badge-primary {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white border-b sticky top-0 z-10" style="border-color: var(--border);">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-2xl font-bold" style="font-family: var(--font-serif), Montserrat, serif; color: var(--foreground);">Recepten</h1>
+            <button class="btn btn-primary" onclick="openImportDialog()">
+                <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                Importeer Recept
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <!-- Search Bar with Inline Filters -->
+        <div class="space-y-3">
+            <div class="relative">
+                <svg class="search-icon absolute left-3 top-1/2 transform -translate-y-1/2" style="color: var(--muted-foreground);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input type="text" class="input pl-10" placeholder="Zoek in recepten..." id="searchInput" />
+            </div>
+
+            <!-- Compact Filter Bar -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- Favorites Toggle -->
+                <button class="filter-chip" id="favoritesToggle" onclick="toggleFavorites()">
+                    <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                    </svg>
+                    Favorieten
+                </button>
+
+                <!-- Collapsible Filter Dropdown -->
+                <div class="filter-dropdown-container">
+                    <button class="filter-chip" onclick="toggleFilterDropdown()">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                        </svg>
+                        Filter
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Dropdown Content -->
+                    <div id="filterDropdown" class="filter-dropdown" style="display: none;">
+                        <div class="filter-dropdown-content">
+                            <!-- Type Labels -->
+                            <div class="filter-dropdown-section">
+                                <label class="filter-dropdown-label">
+                                    <input type="checkbox" class="checkbox-small" />
+                                    <span>Type gerecht</span>
+                                </label>
+                                <div id="labelFilters" class="filter-dropdown-options" style="display: none;">
+                                    <label><input type="checkbox" data-label="voorgerecht" /> Voorgerecht</label>
+                                    <label><input type="checkbox" data-label="hoofdgerecht" /> Hoofdgerecht</label>
+                                    <label><input type="checkbox" data-label="dessert" /> Dessert</label>
+                                    <label><input type="checkbox" data-label="bijgerecht" /> Bijgerecht</label>
+                                    <label><input type="checkbox" data-label="soep" /> Soep</label>
+                                    <label><input type="checkbox" data-label="salade" /> Salade</label>
+                                    <label><input type="checkbox" data-label="snack" /> Snack</label>
+                                </div>
+                            </div>
+
+                            <div class="separator-light"></div>
+
+                            <!-- Ingredients -->
+                            <div class="filter-dropdown-section">
+                                <label class="filter-dropdown-label">
+                                    <input type="checkbox" class="checkbox-small" />
+                                    <span>Ingrediënt</span>
+                                </label>
+                                <div id="ingredientFilters" class="filter-dropdown-options" style="display: none;">
+                                    <label><input type="checkbox" data-ingredient="kip" /> Kip</label>
+                                    <label><input type="checkbox" data-ingredient="vis" /> Vis</label>
+                                    <label><input type="checkbox" data-ingredient="varkensvlees" /> Varkensvlees</label>
+                                    <label><input type="checkbox" data-ingredient="rundvlees" /> Rundvlees</label>
+                                    <label><input type="checkbox" data-ingredient="vegetarisch" /> Vegetarisch</label>
+                                    <label><input type="checkbox" data-ingredient="pasta" /> Pasta</label>
+                                    <label><input type="checkbox" data-ingredient="rijst" /> Rijst</label>
+                                    <label><input type="checkbox" data-ingredient="aardappelen" /> Aardappelen</label>
+                                    <label><input type="checkbox" data-ingredient="chocolade" /> Chocolade</label>
+                                </div>
+                            </div>
+
+                            <div class="separator-light"></div>
+
+                            <!-- Sources -->
+                            <div class="filter-dropdown-section">
+                                <label class="filter-dropdown-label">
+                                    <input type="checkbox" class="checkbox-small" />
+                                    <span>Bron</span>
+                                </label>
+                                <div id="sourceFilters" class="filter-dropdown-options" style="display: none;">
+                                    <label><input type="checkbox" data-source="jeroen-meus" /> Jeroen Meus</label>
+                                    <label><input type="checkbox" data-source="laura-bakeries" /> Laura Bakeries</label>
+                                    <label><input type="checkbox" data-source="dagelijkse-kost" /> Dagelijkse Kost</label>
+                                    <label><input type="checkbox" data-source="njam" /> Njam</label>
+                                    <label><input type="checkbox" data-source="eigen" /> Eigen Recept</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Filters Display -->
+        <div id="activeFilters" class="flex flex-wrap gap-2" style="display: none;">
+            <!-- Active filters will be displayed here -->
+        </div>
+
+        <!-- Recipe Count -->
+        <div class="text-sm" style="color: var(--muted-foreground);">
+            <span id="recipeCount">12</span> recepten gevonden
+        </div>
+
+        <!-- Recipe Grid -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Recipe Card 1 -->
+            <div class="card" data-labels="hoofdgerecht" data-ingredients="kip,rijst" data-source="jeroen-meus">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&h=400&fit=crop" alt="Kippensoep" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Kip Kerrie met Rijst</h3>
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        <span class="badge">Hoofdgerecht</span>
+                        <span class="badge">Kip</span>
+                    </div>
+                    <div class="text-xs mb-2" style="color: var(--muted-foreground);">Bron: Jeroen Meus</div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 45 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 2 -->
+            <div class="card" data-labels="dessert" data-ingredients="chocolade" data-source="laura-bakeries">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&h=400&fit=crop" alt="Chocolade cake" class="recipe-card-image">
+                    <button class="heart-btn favorite" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="oklch(0.6389 0.1202 175.2876)" stroke="oklch(0.6389 0.1202 175.2876)" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Chocolade Brownies</h3>
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        <span class="badge">Dessert</span>
+                        <span class="badge">Chocolade</span>
+                    </div>
+                    <div class="text-xs mb-2" style="color: var(--muted-foreground);">Bron: Laura Bakeries</div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 30 min</span>
+                        <span>👤 8 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 3 -->
+            <div class="card" data-labels="soep,voorgerecht" data-ingredients="vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&h=400&fit=crop" alt="Tomatensoep" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Tomatensoep</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Soep</span>
+                        <span class="badge">Vegetarisch</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 25 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 4 -->
+            <div class="card" data-labels="hoofdgerecht" data-ingredients="pasta,vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=400&fit=crop" alt="Pasta" class="recipe-card-image">
+                    <button class="heart-btn favorite" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="oklch(0.6389 0.1202 175.2876)" stroke="oklch(0.6389 0.1202 175.2876)" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Pasta Arrabiata</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Hoofdgerecht</span>
+                        <span class="badge">Pasta</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 20 min</span>
+                        <span>👤 2 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 5 -->
+            <div class="card" data-labels="hoofdgerecht" data-ingredients="vis">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1580959375944-8f8ed7a592e2?w=600&h=400&fit=crop" alt="Zalm" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Gegrilde Zalm</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Hoofdgerecht</span>
+                        <span class="badge">Vis</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 35 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 6 -->
+            <div class="card" data-labels="salade,voorgerecht" data-ingredients="vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop" alt="Salade" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Caesar Salade</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Salade</span>
+                        <span class="badge">Vegetarisch</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 15 min</span>
+                        <span>👤 2 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 7 -->
+            <div class="card" data-labels="hoofdgerecht" data-ingredients="rundvlees,aardappelen">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1600891964092-4316c288032e?w=600&h=400&fit=crop" alt="Stoofvlees" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Stoofvlees met Friet</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Hoofdgerecht</span>
+                        <span class="badge">Rundvlees</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 120 min</span>
+                        <span>👤 6 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 8 -->
+            <div class="card" data-labels="dessert" data-ingredients="vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&h=400&fit=crop" alt="Pannacotta" class="recipe-card-image">
+                    <button class="heart-btn favorite" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="oklch(0.6389 0.1202 175.2876)" stroke="oklch(0.6389 0.1202 175.2876)" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Pannacotta</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Dessert</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 30 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 9 -->
+            <div class="card" data-labels="hoofdgerecht" data-ingredients="varkensvlees,aardappelen">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1432139509613-5c4255815697?w=600&h=400&fit=crop" alt="Varkenshaas" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Varkenshaas met Aardappels</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Hoofdgerecht</span>
+                        <span class="badge">Varkensvlees</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 50 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 10 -->
+            <div class="card" data-labels="snack,voorgerecht" data-ingredients="vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1601924582970-9238bcb495d9?w=600&h=400&fit=crop" alt="Broodjes" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Mini Broodjes</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Snack</span>
+                        <span class="badge">Vegetarisch</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 40 min</span>
+                        <span>👤 12 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 11 -->
+            <div class="card" data-labels="bijgerecht" data-ingredients="rijst,vegetarisch">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1516684732162-798a0062be99?w=600&h=400&fit=crop" alt="Gebakken rijst" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Gebakken Rijst</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Bijgerecht</span>
+                        <span class="badge">Rijst</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 25 min</span>
+                        <span>👤 4 porties</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipe Card 12 -->
+            <div class="card" data-labels="dessert" data-ingredients="chocolade">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600&h=400&fit=crop" alt="Chocolade mousse" class="recipe-card-image">
+                    <button class="heart-btn" onclick="toggleHeart(event)">
+                        <svg class="heart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">Chocolade Mousse</h3>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge">Dessert</span>
+                        <span class="badge">Chocolade</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm" style="color: var(--muted-foreground);">
+                        <span>⏱️ 20 min</span>
+                        <span>👤 6 porties</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Import Dialog (Modal) -->
+    <div id="importDialog" style="display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); z-index: 50; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; padding: 2rem; background-color: var(--card);">
+            <h2 class="text-xl font-bold mb-4" style="font-family: var(--font-serif), Montserrat, serif;">Importeer Recept</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Van URL</label>
+                    <input type="url" class="input" placeholder="https://..." id="urlInput" />
+                    <p class="text-xs mt-1" style="color: var(--muted-foreground);">AI extraheert automatisch het recept van de pagina</p>
+                </div>
+
+                <div class="text-center" style="color: var(--muted-foreground);">of</div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Van Foto's</label>
+                    <div class="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50" style="border-color: var(--border);" onclick="document.getElementById('fileInput').click()">
+                        <svg class="mx-auto mb-2" style="width: 3rem; height: 3rem; color: var(--muted-foreground);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <p class="text-sm font-medium mb-1">Sleep foto's hierheen of klik om te uploaden</p>
+                        <p class="text-xs" style="color: var(--muted-foreground);">💡 Je kunt meerdere foto's tegelijk uploaden (max 10)</p>
+                        <input type="file" id="fileInput" accept="image/*" multiple style="display: none;" />
+                    </div>
+
+                    <!-- Photo Preview -->
+                    <div id="photoPreview" class="mt-3" style="display: none;">
+                        <p class="text-sm font-medium mb-2">Geüploade foto's (<span id="photoCount">0</span>):</p>
+                        <div id="photoGrid" class="grid grid-cols-5 gap-2">
+                            <!-- Photos will be added here dynamically -->
+                        </div>
+                    </div>
+
+                    <p class="text-xs mt-2" style="color: var(--muted-foreground);">AI leest het recept van alle foto's en combineert de informatie</p>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button class="btn btn-outline flex-1" onclick="closeImportDialog()">Annuleren</button>
+                    <button class="btn btn-primary flex-1" onclick="importRecipe()">Importeren</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let activeFilters = {
+            labels: new Set(),
+            ingredients: new Set(),
+            sources: new Set(),
+            favorites: false,
+            search: ''
+        };
+
+        // Import dialog
+        function openImportDialog() {
+            document.getElementById('importDialog').style.display = 'flex';
+        }
+
+        function closeImportDialog() {
+            document.getElementById('importDialog').style.display = 'none';
+            document.getElementById('urlInput').value = '';
+            document.getElementById('fileInput').value = '';
+        }
+
+        // Handle multiple photo uploads
+        let uploadedPhotos = [];
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+
+            if (files.length > 10) {
+                alert('Maximum 10 foto\'s toegestaan');
+                return;
+            }
+
+            uploadedPhotos = [];
+            const photoGrid = document.getElementById('photoGrid');
+            photoGrid.innerHTML = '';
+
+            files.forEach((file, index) => {
+                uploadedPhotos.push(file);
+
+                // Create preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const photoDiv = document.createElement('div');
+                    photoDiv.className = 'relative';
+                    photoDiv.innerHTML = `
+                        <div class="relative rounded overflow-hidden border" style="border-color: var(--border); aspect-ratio: 1;">
+                            <img src="${e.target.result}" class="w-full h-full object-cover" />
+                            <div class="absolute top-1 left-1 bg-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-semibold" style="color: var(--primary);">
+                                ${index + 1}
+                            </div>
+                            <button onclick="removePhoto(${index})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">
+                                ×
+                            </button>
+                        </div>
+                    `;
+                    photoGrid.appendChild(photoDiv);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Show preview section
+            document.getElementById('photoPreview').style.display = 'block';
+            document.getElementById('photoCount').textContent = files.length;
+        });
+
+        function removePhoto(index) {
+            uploadedPhotos.splice(index, 1);
+            const fileInput = document.getElementById('fileInput');
+            const dt = new DataTransfer();
+            uploadedPhotos.forEach(file => dt.items.add(file));
+            fileInput.files = dt.files;
+
+            // Trigger change event to refresh preview
+            fileInput.dispatchEvent(new Event('change'));
+        }
+
+        function importRecipe() {
+            const url = document.getElementById('urlInput').value;
+            const photos = uploadedPhotos;
+
+            if (url) {
+                console.log('Importing from URL:', url);
+                alert('AI zal het recept nu extraheren van: ' + url);
+            } else if (photos.length > 0) {
+                console.log('Importing from photos:', photos.length, 'files');
+                alert(`AI zal het recept nu lezen van ${photos.length} foto${photos.length > 1 ? '\'s' : ''}`);
+            } else {
+                alert('Voer een URL in of upload minimaal 1 foto');
+                return;
+            }
+
+            closeImportDialog();
+            // In real app, this would call Gemini AI to extract recipe from all photos
+        }
+
+        // Heart button toggle
+        function toggleHeart(event) {
+            event.stopPropagation();
+            const btn = event.currentTarget;
+            const svg = btn.querySelector('svg');
+            const path = svg.querySelector('path');
+
+            if (btn.classList.contains('favorite')) {
+                btn.classList.remove('favorite');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', 'currentColor');
+            } else {
+                btn.classList.add('favorite');
+                path.setAttribute('fill', 'oklch(0.6389 0.1202 175.2876)');
+                path.setAttribute('stroke', 'oklch(0.6389 0.1202 175.2876)');
+            }
+        }
+
+        // Favorites toggle
+        function toggleFavorites() {
+            const btn = document.getElementById('favoritesToggle');
+            btn.classList.toggle('active');
+            activeFilters.favorites = btn.classList.contains('active');
+            filterRecipes();
+        }
+
+        // Toggle filter dropdown
+        function toggleFilterDropdown() {
+            const dropdown = document.getElementById('filterDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('filterDropdown');
+            const container = document.querySelector('.filter-dropdown-container');
+            if (dropdown && container && !container.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Expandable filter sections
+        document.querySelectorAll('.filter-dropdown-label').forEach((label, index) => {
+            const checkbox = label.querySelector('.checkbox-small');
+            const optionsContainers = ['labelFilters', 'ingredientFilters', 'sourceFilters'];
+
+            checkbox.addEventListener('change', function() {
+                const options = document.getElementById(optionsContainers[index]);
+                options.style.display = this.checked ? 'flex' : 'none';
+            });
+        });
+
+        // Filter checkboxes
+        document.querySelectorAll('[data-label]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const label = this.dataset.label;
+                if (this.checked) {
+                    activeFilters.labels.add(label);
+                } else {
+                    activeFilters.labels.delete(label);
+                }
+                filterRecipes();
+            });
+        });
+
+        document.querySelectorAll('[data-ingredient]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const ingredient = this.dataset.ingredient;
+                if (this.checked) {
+                    activeFilters.ingredients.add(ingredient);
+                } else {
+                    activeFilters.ingredients.delete(ingredient);
+                }
+                filterRecipes();
+            });
+        });
+
+        document.querySelectorAll('[data-source]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const source = this.dataset.source;
+                if (this.checked) {
+                    activeFilters.sources.add(source);
+                } else {
+                    activeFilters.sources.delete(source);
+                }
+                filterRecipes();
+            });
+        });
+
+        // Search input
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            activeFilters.search = e.target.value.toLowerCase();
+            filterRecipes();
+        });
+
+        // Filter recipes
+        function filterRecipes() {
+            const cards = document.querySelectorAll('.card');
+            let visibleCount = 0;
+
+            cards.forEach(card => {
+                let show = true;
+
+                // Filter by favorites
+                if (activeFilters.favorites) {
+                    const heartBtn = card.querySelector('.heart-btn');
+                    if (!heartBtn.classList.contains('favorite')) {
+                        show = false;
+                    }
+                }
+
+                // Filter by labels
+                if (show && activeFilters.labels.size > 0) {
+                    const cardLabels = (card.dataset.labels || '').split(',');
+                    const hasLabel = Array.from(activeFilters.labels).some(label =>
+                        cardLabels.includes(label)
+                    );
+                    if (!hasLabel) show = false;
+                }
+
+                // Filter by ingredients
+                if (show && activeFilters.ingredients.size > 0) {
+                    const cardIngredients = (card.dataset.ingredients || '').split(',');
+                    const hasIngredient = Array.from(activeFilters.ingredients).some(ingredient =>
+                        cardIngredients.includes(ingredient)
+                    );
+                    if (!hasIngredient) show = false;
+                }
+
+                // Filter by source
+                if (show && activeFilters.sources.size > 0) {
+                    const cardSource = card.dataset.source || '';
+                    if (!activeFilters.sources.has(cardSource)) {
+                        show = false;
+                    }
+                }
+
+                // Filter by search text
+                if (show && activeFilters.search) {
+                    const title = card.querySelector('h3').textContent.toLowerCase();
+                    if (!title.includes(activeFilters.search)) {
+                        show = false;
+                    }
+                }
+
+                card.style.display = show ? 'block' : 'none';
+                if (show) visibleCount++;
+            });
+
+            // Update recipe count
+            document.getElementById('recipeCount').textContent = visibleCount;
+        }
+
+        // Recipe card click
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                if (!e.target.closest('.heart-btn')) {
+                    const title = this.querySelector('h3').textContent;
+                    console.log('Navigate to recipe:', title);
+                    // In real app, navigate to recipe detail page
+                }
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            filterRecipes();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,320 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@/lib/supabase/server'
+import { RecipeInsert, ParsedIngredientInsert } from '@/types/supabase'
+import * as cheerio from 'cheerio'
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
+
+// Helper function to extract image from webpage
+async function extractImageFromWebpage(html: string, url: string): Promise<string | null> {
+  try {
+    const $ = cheerio.load(html)
+    const baseUrl = new URL(url).origin
+
+    // Try different selectors for recipe images
+    const selectors = [
+      'meta[property="og:image"]',
+      'meta[name="twitter:image"]',
+      'article img',
+      '.recipe-image img',
+      '.recipe img',
+      'img[alt*="recept"]',
+      'img[alt*="recipe"]',
+      'main img:first'
+    ]
+
+    for (const selector of selectors) {
+      const element = $(selector).first()
+      let imageUrl = element.attr('content') || element.attr('src')
+
+      if (imageUrl) {
+        // Make absolute URL
+        if (imageUrl.startsWith('//')) {
+          imageUrl = 'https:' + imageUrl
+        } else if (imageUrl.startsWith('/')) {
+          imageUrl = baseUrl + imageUrl
+        } else if (!imageUrl.startsWith('http')) {
+          imageUrl = baseUrl + '/' + imageUrl
+        }
+
+        return imageUrl
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting image:', error)
+  }
+  return null
+}
+
+// Helper function to download and upload image to Supabase
+async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: any): Promise<string | null> {
+  try {
+    // Download image
+    const response = await fetch(imageUrl)
+    if (!response.ok) return null
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // Get file extension from URL or content-type
+    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    const extension = contentType.split('/')[1]?.split(';')[0] || 'jpg'
+    const timestamp = Date.now()
+    const randomStr = Math.random().toString(36).substring(2, 8)
+    const filename = `${slug}-${timestamp}-${randomStr}.${extension}`
+    const filepath = `${slug}/${filename}`
+
+    // Upload to Supabase storage
+    const { data, error } = await supabase.storage
+      .from('recipe-images')
+      .upload(filepath, buffer, {
+        contentType,
+        upsert: false
+      })
+
+    if (error) {
+      console.error('Error uploading image:', error)
+      return null
+    }
+
+    // Return public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('recipe-images')
+      .getPublicUrl(filepath)
+
+    return publicUrl
+  } catch (error) {
+    console.error('Error downloading/uploading image:', error)
+    return null
+  }
+}
+
+// Recipe extraction prompt
+const RECIPE_PROMPT = `
+Extract recipe information from the content. Return ONLY valid JSON matching this structure.
+Be as flexible as possible - if any field is missing or unclear, just omit it or use null.
+
+{
+  "title": "Recipe title" (REQUIRED - extract from page),
+  "description": "Brief description" (optional),
+  "prep_time": number in minutes (optional),
+  "cook_time": number in minutes (optional),
+  "servings": number of servings (optional),
+  "difficulty": "Makkelijk" | "Gemiddeld" | "Moeilijk" (optional),
+  "ingredients": [
+    {
+      "amount": number or null,
+      "unit": "el" | "tl" | "ml" | "l" | "g" | "kg" | etc or null,
+      "name": "ingredient name in Dutch"
+    }
+  ],
+  "instructions": "Step-by-step instructions in markdown format" (extract what you can),
+  "labels": ["Voorgerecht" | "Hoofdgerecht" | "Dessert" | "Bijgerecht"] (IMPORTANT: Select ONE category that best describes this dish. Choose from: Voorgerecht, Hoofdgerecht, Dessert, Bijgerecht. Return as single-item array.),
+  "source": "Source name if mentioned" (optional)
+}
+
+Important:
+- All text MUST be in Dutch
+- If instructions are not clear, just extract whatever text you can find
+- Extract as many ingredients as possible, even if amounts are unclear
+- LABELS: Choose ONE category only (Voorgerecht, Hoofdgerecht, Dessert, or Bijgerecht) that best describes this dish type
+- Don't worry about perfect formatting - just get the content
+- The only REQUIRED field is "title" - everything else is optional
+`
+
+export async function POST(request: NextRequest) {
+  try {
+    const contentType = request.headers.get('content-type')
+    const supabase = await createClient()
+
+    let recipeData: any
+
+    if (contentType?.includes('application/json')) {
+      // Import from URL
+      const { url } = await request.json()
+
+      if (!url) {
+        return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+      }
+
+      // Fetch the webpage content
+      const response = await fetch(url)
+      const html = await response.text()
+
+      // Extract image from webpage
+      const extractedImageUrl = await extractImageFromWebpage(html, url)
+
+      // Use Gemini to extract recipe from HTML
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' })
+      const result = await model.generateContent([
+        RECIPE_PROMPT,
+        `Extract recipe information from this webpage HTML:\n\n${html.slice(0, 50000)}` // Limit to 50k chars
+      ])
+
+      const text = result.response.text()
+      // Extract JSON from response (Gemini might wrap it in markdown)
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('Could not extract recipe information')
+      }
+
+      recipeData = JSON.parse(jsonMatch[0])
+      recipeData.source_url = url
+      recipeData.extracted_image_url = extractedImageUrl
+
+    } else if (contentType?.includes('multipart/form-data')) {
+      // Import from photos
+      const formData = await request.formData()
+      const photos = formData.getAll('photos') as File[]
+
+      if (photos.length === 0) {
+        return NextResponse.json({ error: 'No photos provided' }, { status: 400 })
+      }
+
+      // Convert photos to base64 for Gemini
+      const photoData = await Promise.all(
+        photos.map(async (photo) => {
+          const bytes = await photo.arrayBuffer()
+          const base64 = Buffer.from(bytes).toString('base64')
+          return {
+            inlineData: {
+              data: base64,
+              mimeType: photo.type
+            }
+          }
+        })
+      )
+
+      // Use Gemini multimodal to extract recipe from photos
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' })
+      const result = await model.generateContent([
+        RECIPE_PROMPT,
+        'Extract and combine recipe information from these photos:',
+        ...photoData
+      ])
+
+      const text = result.response.text()
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('Could not extract recipe information from photos')
+      }
+
+      recipeData = JSON.parse(jsonMatch[0])
+      recipeData.notes = `Geïmporteerd van ${photos.length} foto's`
+
+    } else {
+      return NextResponse.json({ error: 'Invalid content type' }, { status: 400 })
+    }
+
+    // Generate slug from title
+    const slug = recipeData.title
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+
+    // Handle image - download and upload to Supabase
+    let imageUrl: string | null = null
+
+    if (recipeData.extracted_image_url) {
+      // Try to download and upload the extracted image
+      imageUrl = await downloadAndUploadImage(recipeData.extracted_image_url, slug, supabase)
+    }
+
+    // If image extraction failed, search for a fallback image based on the recipe title
+    if (!imageUrl && recipeData.title) {
+      try {
+        // Use Unsplash for fallback images
+        const searchTerm = encodeURIComponent(recipeData.title.split(' ').slice(0, 2).join(' '))
+        const unsplashUrl = `https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop&q=80`
+        imageUrl = unsplashUrl // Use a generic food image as ultimate fallback
+      } catch (error) {
+        console.error('Error getting fallback image:', error)
+      }
+    }
+
+    // Insert recipe into database - be very lenient with data
+    const recipe: RecipeInsert = {
+      title: recipeData.title || 'Geïmporteerd Recept',
+      slug,
+      description: recipeData.description || null,
+      prep_time: recipeData.prep_time || null,
+      cook_time: recipeData.cook_time || null,
+      servings_default: recipeData.servings || 4, // Default to 4 servings
+      difficulty: recipeData.difficulty || null, // Keep Dutch values
+      content_markdown: recipeData.instructions || 'Geen bereidingswijze beschikbaar.',
+      labels: recipeData.labels || null,
+      source_name: recipeData.source || null,
+      source_url: recipeData.source_url || null,
+      source_language: 'nl',
+      image_url: imageUrl,
+      is_favorite: false
+    }
+
+    const { data: insertedRecipe, error: recipeError } = await supabase
+      .from('recipes')
+      .insert(recipe)
+      .select()
+      .single()
+
+    if (recipeError) {
+      console.error('Error inserting recipe:', recipeError)
+      return NextResponse.json({ error: 'Failed to save recipe' }, { status: 500 })
+    }
+
+    // Insert ingredients - be very lenient
+    if (recipeData.ingredients && Array.isArray(recipeData.ingredients) && recipeData.ingredients.length > 0) {
+      const ingredients: ParsedIngredientInsert[] = recipeData.ingredients
+        .filter((ing: any) => ing && ing.name) // Only include ingredients with a name
+        .map((ing: any, index: number) => {
+          const amount = ing.amount || null
+          const unit = ing.unit || null
+          let amount_display = ''
+
+          if (amount && unit) {
+            amount_display = `${amount} ${unit}`
+          } else if (amount) {
+            amount_display = `${amount}`
+          } else if (unit) {
+            amount_display = unit
+          }
+
+          return {
+            recipe_id: insertedRecipe.id,
+            ingredient_name_nl: ing.name || 'Onbekend ingrediënt',
+            amount,
+            unit,
+            amount_display,
+            scalable: amount !== null,
+            order_index: index
+          }
+        })
+
+      if (ingredients.length > 0) {
+        const { error: ingredientsError } = await supabase
+          .from('parsed_ingredients')
+          .insert(ingredients)
+
+        if (ingredientsError) {
+          console.error('Error inserting ingredients:', ingredientsError)
+          // Don't fail the whole import if ingredients fail
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      recipe: insertedRecipe,
+      slug
+    })
+
+  } catch (error) {
+    console.error('Import error:', error)
+    return NextResponse.json(
+      { error: 'Failed to import recipe', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}

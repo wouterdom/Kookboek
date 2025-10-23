@@ -1,0 +1,242 @@
+"use client"
+
+import { useState, useRef, useCallback } from "react"
+import { X, Upload, Image as ImageIcon, Camera } from "lucide-react"
+import Image from "next/image"
+
+interface ImportDialogProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess?: () => void
+}
+
+export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) {
+  const [url, setUrl] = useState("")
+  const [photos, setPhotos] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const addPhotos = useCallback((files: File[]) => {
+    if (photos.length + files.length > 10) {
+      alert("Maximum 10 foto's toegestaan")
+      return
+    }
+
+    const newPhotos = [...photos, ...files.slice(0, 10 - photos.length)]
+    setPhotos(newPhotos)
+
+    // Create previews
+    const newPreviews: string[] = []
+    newPhotos.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        newPreviews.push(e.target?.result as string)
+        if (newPreviews.length === newPhotos.length) {
+          setPhotoPreviews(newPreviews)
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [photos.length])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    addPhotos(files)
+  }, [addPhotos])
+
+  const removePhoto = useCallback((index: number) => {
+    const newPhotos = photos.filter((_, i) => i !== index)
+    const newPreviews = photoPreviews.filter((_, i) => i !== index)
+    setPhotos(newPhotos)
+    setPhotoPreviews(newPreviews)
+  }, [photos, photoPreviews])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const files = Array.from(e.dataTransfer.files).filter(file =>
+      file.type.startsWith('image/')
+    )
+    addPhotos(files)
+  }, [addPhotos])
+
+  const handleImport = useCallback(async () => {
+    if (!url && photos.length === 0) {
+      alert("Voer een URL in of upload minimaal 1 foto")
+      return
+    }
+
+    setIsImporting(true)
+
+    try {
+      let response
+
+      if (url) {
+        // Import from URL using Gemini
+        response = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        })
+      } else if (photos.length > 0) {
+        // Upload photos and extract with Gemini
+        const formData = new FormData()
+        photos.forEach(photo => formData.append('photos', photo))
+
+        response = await fetch('/api/import', {
+          method: 'POST',
+          body: formData
+        })
+      }
+
+      if (response && response.ok) {
+        const data = await response.json()
+        console.log('Recipe imported successfully:', data)
+        onSuccess?.()
+        onClose()
+      } else {
+        const error = await response?.json()
+        throw new Error(error?.error || 'Import failed')
+      }
+    } catch (error) {
+      console.error('Import error:', error)
+      alert('Er ging iets mis bij het importeren. Probeer het opnieuw.')
+    } finally {
+      setIsImporting(false)
+    }
+  }, [url, photos, onSuccess, onClose])
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-lg rounded-lg bg-white p-8 shadow-lg">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-[Montserrat] text-xl font-bold">Importeer Recept</h2>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-gray-100 transition-colors"
+            aria-label="Sluiten"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium">Van URL</label>
+            <input
+              type="url"
+              placeholder="https://..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={photos.length > 0}
+              className="input"
+            />
+            <p className="mt-1 text-xs text-[oklch(var(--muted-foreground))]">
+              AI extraheert automatisch het recept van de pagina
+            </p>
+          </div>
+
+          <div className="text-center text-[oklch(var(--muted-foreground))]">of</div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Van Foto's</label>
+            <div
+              onClick={() => !url && fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                isDragging ? 'border-[oklch(var(--primary))] bg-[oklch(var(--primary)/0.05)]' :
+                'border-[oklch(var(--border))] hover:bg-gray-50'
+              } ${url ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Camera className="mx-auto mb-2 h-12 w-12 text-[oklch(var(--muted-foreground))]" />
+              <p className="mb-1 text-sm font-medium">
+                Sleep foto's hierheen of klik om te uploaden
+              </p>
+              <p className="text-xs text-[oklch(var(--muted-foreground))]">
+                💡 Je kunt meerdere foto's tegelijk uploaden (max 10)
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={!!url}
+              />
+            </div>
+
+            {photos.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-sm font-medium">
+                  Geüploade foto's ({photos.length}):
+                </p>
+                <div className="grid grid-cols-5 gap-2">
+                  {photoPreviews.map((preview, index) => (
+                    <div
+                      key={index}
+                      className="relative aspect-square overflow-hidden rounded border border-[oklch(var(--border))]"
+                    >
+                      <Image
+                        src={preview}
+                        alt={`Foto ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                      <div className="absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-[oklch(var(--primary))]">
+                        {index + 1}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removePhoto(index)
+                        }}
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs hover:bg-red-600 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="mt-2 text-xs text-[oklch(var(--muted-foreground))]">
+              AI leest het recept van alle foto's en combineert de informatie
+            </p>
+          </div>
+
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="btn btn-outline flex-1" disabled={isImporting}>
+              Annuleren
+            </button>
+            <button
+              onClick={handleImport}
+              className="btn btn-primary flex-1"
+              disabled={isImporting || (!url && photos.length === 0)}
+            >
+              {isImporting ? 'Bezig met importeren...' : 'Importeren'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
