@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import Image from 'next/image'
-import { X, Upload, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { X, Upload, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react'
 
 interface ImageUploadModalProps {
   isOpen: boolean
@@ -10,6 +10,9 @@ interface ImageUploadModalProps {
   onUpload: (imageUrl: string) => void
   currentImageUrl?: string
   recipeSlug: string
+  recipeTitle?: string
+  recipeDescription?: string
+  recipeIngredients?: string[]
 }
 
 export function ImageUploadModal({
@@ -17,12 +20,16 @@ export function ImageUploadModal({
   onClose,
   currentImageUrl,
   recipeSlug,
-  onUpload
+  onUpload,
+  recipeTitle,
+  recipeDescription,
+  recipeIngredients
 }: ImageUploadModalProps) {
   const [dragActive, setDragActive] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [generatingAI, setGeneratingAI] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(async (file: File) => {
@@ -118,32 +125,82 @@ export function ImageUploadModal({
     fileInputRef.current?.click()
   }
 
+  const handleAIGenerate = async () => {
+    setGeneratingAI(true)
+    setUploadProgress(0)
+
+    try {
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return 90
+          }
+          return prev + 5
+        })
+      }, 500)
+
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipeSlug,
+          recipeTitle,
+          recipeDescription,
+          recipeIngredients
+        })
+      })
+
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+
+      if (response.ok) {
+        const data = await response.json()
+        setTimeout(() => {
+          setPreview(data.url)
+          onUpload(data.url)
+          onClose()
+          setUploadProgress(0)
+        }, 500)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Fout bij genereren van afbeelding')
+      }
+    } catch (error) {
+      console.error('Error generating image:', error)
+      alert('Fout bij genereren van afbeelding')
+    } finally {
+      setGeneratingAI(false)
+    }
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+      <div className="relative w-full max-w-lg sm:max-w-2xl bg-white rounded-lg sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Wijzig Foto</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Wijzig Foto</h2>
           <button
             onClick={onClose}
-            disabled={uploading}
+            disabled={uploading || generatingAI}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
-            <X className="h-6 w-6 text-gray-500" />
+            <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-500" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Current Image Preview */}
-          {(currentImageUrl || preview) && !uploading && (
+          {(currentImageUrl || preview) && !uploading && !generatingAI && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-gray-700">
                 {preview ? 'Nieuwe foto' : 'Huidige foto'}
               </h3>
-              <div className="relative h-64 w-full rounded-xl overflow-hidden border-2 border-gray-200">
+              <div className="relative h-48 sm:h-64 w-full rounded-lg sm:rounded-xl overflow-hidden border-2 border-gray-200">
                 <Image
                   src={preview || currentImageUrl || ''}
                   alt="Recipe preview"
@@ -156,9 +213,9 @@ export function ImageUploadModal({
           )}
 
           {/* Upload Area */}
-          {!uploading && (
+          {!uploading && !generatingAI && (
             <div
-              className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all ${
+              className={`relative border-2 border-dashed rounded-lg sm:rounded-xl p-6 sm:p-12 text-center transition-all ${
                 dragActive
                   ? 'border-primary bg-primary/5 scale-105'
                   : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
@@ -176,55 +233,71 @@ export function ImageUploadModal({
                 className="hidden"
               />
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-center">
-                  <div className="p-4 bg-primary/10 rounded-full">
-                    <ImageIcon className="h-12 w-12 text-primary" />
+                  <div className="p-3 sm:p-4 bg-primary/10 rounded-full">
+                    <ImageIcon className="h-8 w-8 sm:h-12 sm:w-12 text-primary" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-lg font-medium text-gray-900">
+                  <p className="text-base sm:text-lg font-medium text-gray-900">
                     Sleep een foto hierheen
                   </p>
                   <p className="text-sm text-gray-500">
-                    of
+                    of kies een optie:
                   </p>
                 </div>
 
-                <button
-                  onClick={handleButtonClick}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                >
-                  <Upload className="h-5 w-5" />
-                  Selecteer een bestand
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
+                  <button
+                    onClick={handleButtonClick}
+                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm sm:text-base"
+                  >
+                    <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Selecteer bestand
+                  </button>
 
-                <p className="text-xs text-gray-400 mt-4">
+                  {recipeTitle && (
+                    <button
+                      onClick={handleAIGenerate}
+                      className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all text-sm sm:text-base"
+                    >
+                      <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+                      AI Genereren
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-xs text-gray-400 mt-2 sm:mt-4">
                   PNG, JPG, GIF tot 10MB
                 </p>
               </div>
             </div>
           )}
 
-          {/* Upload Progress */}
-          {uploading && (
+          {/* Upload/Generate Progress */}
+          {(uploading || generatingAI) && (
             <div className="space-y-4">
-              <div className="relative h-64 w-full rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
+              <div className="relative h-48 sm:h-64 w-full rounded-lg sm:rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
                 {preview && (
                   <Image
                     src={preview}
-                    alt="Uploading preview"
+                    alt="Processing preview"
                     fill
                     className="object-cover opacity-50"
                     unoptimized
                   />
                 )}
-                <div className="relative z-10 flex flex-col items-center gap-4 bg-white/90 backdrop-blur-sm rounded-2xl p-8">
-                  <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                  <div className="space-y-2 text-center">
-                    <p className="text-lg font-medium text-gray-900">
-                      Foto uploaden...
+                <div className="relative z-10 flex flex-col items-center gap-3 sm:gap-4 bg-white/90 backdrop-blur-sm rounded-xl sm:rounded-2xl p-6 sm:p-8 mx-4">
+                  {generatingAI ? (
+                    <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 text-purple-600 animate-pulse" />
+                  ) : (
+                    <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 text-primary animate-spin" />
+                  )}
+                  <div className="space-y-1 sm:space-y-2 text-center">
+                    <p className="text-base sm:text-lg font-medium text-gray-900">
+                      {generatingAI ? 'AI foto genereren...' : 'Foto uploaden...'}
                     </p>
                     <p className="text-sm text-gray-500">
                       {uploadProgress}%
@@ -236,7 +309,9 @@ export function ImageUploadModal({
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className="h-full bg-primary transition-all duration-300 ease-out"
+                  className={`h-full transition-all duration-300 ease-out ${
+                    generatingAI ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-primary'
+                  }`}
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
@@ -245,11 +320,11 @@ export function ImageUploadModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-end gap-2 sm:gap-3 p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
           <button
             onClick={onClose}
-            disabled={uploading}
-            className="px-6 py-2 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            disabled={uploading || generatingAI}
+            className="px-4 sm:px-6 py-2 text-sm sm:text-base text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             Annuleren
           </button>

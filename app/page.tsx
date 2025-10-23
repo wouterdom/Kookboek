@@ -4,21 +4,25 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Search, Upload, Heart, Filter, ChevronDown } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 import { ImportDialog } from "@/components/import-dialog"
+import { PdfImportButton } from "@/components/pdf-import-button"
+import { PdfImportProgress } from "@/components/pdf-import-progress"
+import { CategoryTypeManagementModal } from "@/components/category-type-management-modal"
+import { CategoryLabelManagementModal } from "@/components/category-label-management-modal"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
-import { Recipe } from "@/types/supabase"
+import { Recipe, CategoriesByType, CategoryType } from "@/types/supabase"
 
 export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [showFavorites, setShowFavorites] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set())
-  const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(new Set())
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set())
-  const [categories, setCategories] = useState<{ id: string; name: string; color: string }[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [categoriesByType, setCategoriesByType] = useState<CategoriesByType>({})
+  const [isCategoryTypeModalOpen, setIsCategoryTypeModalOpen] = useState(false)
+  const [labelManagementType, setLabelManagementType] = useState<CategoryType | null>(null)
 
   const supabase = createClient()
 
@@ -29,7 +33,19 @@ export default function HomePage() {
 
       let query = supabase
         .from('recipes')
-        .select('*')
+        .select(`
+          *,
+          recipe_categories(
+            category:categories(
+              id,
+              name,
+              slug,
+              color,
+              type_id,
+              category_type:category_types(*)
+            )
+          )
+        `)
         .order('created_at', { ascending: false })
 
       // Apply search filter
@@ -42,24 +58,21 @@ export default function HomePage() {
         query = query.eq('is_favorite', true)
       }
 
-      // Apply source filter
-      if (selectedSources.size > 0) {
-        query = query.in('source_name', Array.from(selectedSources))
-      }
-
       const { data, error } = await query
 
       if (!error && data) {
-        // Filter by labels on client side (since they're arrays)
+        // Filter by selected categories on client side
         let filteredData = data
 
-        if (selectedLabels.size > 0) {
-          filteredData = filteredData.filter(recipe =>
-            recipe.labels?.some(label => selectedLabels.has(label)) || false
-          )
+        if (selectedCategories.size > 0) {
+          filteredData = filteredData.filter(recipe => {
+            const recipeCategoryIds = recipe.recipe_categories?.map((rc: any) => rc.category.id) || []
+            // Check if recipe has ANY of the selected categories
+            return Array.from(selectedCategories).some(catId => recipeCategoryIds.includes(catId))
+          })
         }
 
-        setRecipes(filteredData)
+        setRecipes(filteredData as any)
       } else if (error) {
         console.error('Error loading recipes:', error)
       }
@@ -68,15 +81,15 @@ export default function HomePage() {
     } finally {
       setIsLoading(false)
     }
-  }, [searchQuery, showFavorites, selectedLabels, selectedSources, supabase])
+  }, [searchQuery, showFavorites, selectedCategories, supabase])
 
-  // Load categories
+  // Load categories grouped by type
   const loadCategories = useCallback(async () => {
     try {
-      const response = await fetch('/api/categories')
+      const response = await fetch('/api/categories/grouped')
       if (response.ok) {
         const data = await response.json()
-        setCategories(data)
+        setCategoriesByType(data)
       }
     } catch (error) {
       console.error('Error loading categories:', error)
@@ -95,22 +108,6 @@ export default function HomePage() {
     return () => clearTimeout(debounceTimer)
   }, [loadRecipes])
 
-  // Extract unique values for filters
-  const { availableLabels, availableSources } = useMemo(() => {
-    const labels = new Set<string>()
-    const sources = new Set<string>()
-
-    recipes.forEach(recipe => {
-      recipe.labels?.forEach(label => labels.add(label))
-      if (recipe.source_name) sources.add(recipe.source_name)
-    })
-
-    return {
-      availableLabels: Array.from(labels).sort(),
-      availableSources: Array.from(sources).sort()
-    }
-  }, [recipes])
-
   const handleFavoriteChange = (id: string, isFavorite: boolean) => {
     setRecipes(prev => prev.map(r =>
       r.id === id ? { ...r, is_favorite: isFavorite } : r
@@ -121,19 +118,45 @@ export default function HomePage() {
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
+  const toggleCategory = (categoryId: string) => {
+    const newCategories = new Set(selectedCategories)
+    if (newCategories.has(categoryId)) {
+      newCategories.delete(categoryId)
+    } else {
+      newCategories.add(categoryId)
+    }
+    setSelectedCategories(newCategories)
+  }
+
+  const getCategoryById = (categoryId: string) => {
+    for (const typeData of Object.values(categoriesByType)) {
+      const category = typeData.categories.find(c => c.id === categoryId)
+      if (category) return category
+    }
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <h1 className="font-[Montserrat] text-2xl font-bold">Recepten</h1>
-          <button
-            onClick={() => setIsImportDialogOpen(true)}
-            className="btn btn-primary btn-md flex items-center gap-2"
-          >
-            <Upload className="h-5 w-5" />
-            Importeer Recept
-          </button>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:py-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <h1 className="font-[Montserrat] text-xl sm:text-2xl font-bold">Recepten</h1>
+            <PdfImportProgress />
+          </div>
+          <div className="flex items-center gap-2">
+            <PdfImportButton />
+            <button
+              onClick={() => setIsImportDialogOpen(true)}
+              className="btn btn-primary btn-sm sm:btn-md flex items-center gap-1.5 sm:gap-2"
+              aria-label="Importeer Recept"
+            >
+              <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="hidden sm:inline">Importeer Recept</span>
+              <span className="sm:hidden">Importeer</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -152,7 +175,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Compact Filter Bar */}
+          {/* Filter Bar - Aparte dropdowns per categorietype */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Favorites Toggle */}
             <button
@@ -167,113 +190,97 @@ export default function HomePage() {
               Favorieten
             </button>
 
-            {/* Collapsible Filter Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                className="filter-chip"
-              >
-                <Filter className="h-4 w-4" />
-                Filter
-                <ChevronDown className="h-4 w-4" />
-              </button>
+            {/* Dropdown per categorietype */}
+            {Object.entries(categoriesByType).map(([typeSlug, typeData]) => {
+              const selectedInThisType = typeData.categories.filter(c =>
+                selectedCategories.has(c.id)
+              ).length
 
-              {/* Dropdown Content */}
-              {isFilterDropdownOpen && (
-                <div className="absolute left-0 top-full z-50 mt-2 min-w-[280px] rounded-lg border bg-white p-3 shadow-lg">
-                  <div className="max-h-[400px] space-y-3 overflow-y-auto">
-                    {/* Type Labels */}
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-[oklch(var(--muted-foreground))]">Type gerecht</div>
-                      <div className="ml-2 space-y-2">
-                        {availableLabels.map(label => (
-                          <label key={label} className="flex items-center gap-2 text-sm cursor-pointer hover:text-[oklch(var(--primary))]">
-                            <input
-                              type="checkbox"
-                              checked={selectedLabels.has(label)}
-                              onChange={(e) => {
-                                const newLabels = new Set(selectedLabels)
-                                if (e.target.checked) {
-                                  newLabels.add(label)
-                                } else {
-                                  newLabels.delete(label)
-                                }
-                                setSelectedLabels(newLabels)
-                              }}
-                              className="checkbox h-4 w-4"
-                            />
-                            <span>{label}</span>
-                          </label>
-                        ))}
+              return (
+                <div key={typeSlug} className="relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === typeSlug ? null : typeSlug)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all ${
+                      selectedInThisType > 0
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "border-border bg-white hover:border-primary hover:bg-primary/5"
+                    }`}
+                  >
+                    {typeData.type.name}
+                    {selectedInThisType > 0 && (
+                      <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                        {selectedInThisType}
+                      </span>
+                    )}
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+
+                  {/* Dropdown Content */}
+                  {openDropdown === typeSlug && (
+                    <div className="absolute left-0 top-full z-50 mt-2 min-w-[240px] rounded-lg border bg-white p-3 shadow-lg">
+                      <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                        {typeData.categories.length === 0 ? (
+                          <div className="text-sm text-muted-foreground py-2">
+                            Geen categorieën beschikbaar
+                          </div>
+                        ) : (
+                          typeData.categories.map(category => (
+                            <label
+                              key={category.id}
+                              className="flex items-center gap-2 text-sm cursor-pointer hover:text-[oklch(var(--primary))] group py-1"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedCategories.has(category.id)}
+                                onChange={() => toggleCategory(category.id)}
+                                className="checkbox h-4 w-4"
+                              />
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="h-3 w-3 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: category.color }}
+                                />
+                                <span className="truncate">{category.name}</span>
+                              </span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t">
+                        <button
+                          onClick={() => {
+                            setOpenDropdown(null)
+                            setLabelManagementType(typeData.type)
+                          }}
+                          className="text-sm text-primary hover:text-primary/80 w-full text-left"
+                        >
+                          + Beheer labels
+                        </button>
                       </div>
                     </div>
-
-                    {availableSources.length > 0 && (
-                      <>
-                        <div className="h-px bg-[oklch(var(--border))]" />
-
-                        {/* Sources */}
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium text-[oklch(var(--muted-foreground))]">Bron</div>
-                          <div className="ml-2 space-y-2">
-                            {availableSources.map(source => (
-                              <label key={source} className="flex items-center gap-2 text-sm cursor-pointer hover:text-[oklch(var(--primary))]">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSources.has(source)}
-                                  onChange={(e) => {
-                                    const newSources = new Set(selectedSources)
-                                    if (e.target.checked) {
-                                      newSources.add(source)
-                                    } else {
-                                      newSources.delete(source)
-                                    }
-                                    setSelectedSources(newSources)
-                                  }}
-                                  className="checkbox h-4 w-4"
-                                />
-                                <span>{source}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })}
 
-            {/* Active filter chips */}
-            {selectedLabels.size > 0 && Array.from(selectedLabels).map(label => (
-              <button
-                key={label}
-                onClick={() => {
-                  const newLabels = new Set(selectedLabels)
-                  newLabels.delete(label)
-                  setSelectedLabels(newLabels)
-                }}
-                className="filter-chip active"
-              >
-                {label}
-                <span className="ml-1">×</span>
-              </button>
-            ))}
+            {/* Manage Categories Button */}
+            <button
+              onClick={() => setIsCategoryTypeModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-dashed border-border px-4 py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"
+            >
+              + Categorie toevoegen
+            </button>
 
-            {selectedSources.size > 0 && Array.from(selectedSources).map(source => (
+            {/* Clear all filters */}
+            {selectedCategories.size > 0 && (
               <button
-                key={source}
-                onClick={() => {
-                  const newSources = new Set(selectedSources)
-                  newSources.delete(source)
-                  setSelectedSources(newSources)
-                }}
-                className="filter-chip active"
+                onClick={() => setSelectedCategories(new Set())}
+                className="text-sm text-muted-foreground hover:text-foreground underline"
               >
-                {source}
-                <span className="ml-1">×</span>
+                Wis alle filters
               </button>
-            ))}
+            )}
           </div>
         </div>
 
@@ -300,7 +307,7 @@ export default function HomePage() {
         ) : recipes.length === 0 ? (
           <div className="py-12 text-center text-[oklch(var(--muted-foreground))]">
             <p className="text-lg">
-              {searchQuery || showFavorites || selectedLabels.size > 0 || selectedSources.size > 0
+              {searchQuery || showFavorites || selectedCategories.size > 0
                 ? 'Geen recepten gevonden met deze filters'
                 : 'Nog geen recepten toegevoegd. Klik op "Importeer Recept" om te beginnen!'}
             </p>
@@ -311,7 +318,7 @@ export default function HomePage() {
               <RecipeCard
                 key={recipe.id}
                 recipe={recipe}
-                categories={categories}
+                categories={[]} // We halen nu categorieën via recipe_categories
                 onFavoriteChange={handleFavoriteChange}
                 onDelete={handleDelete}
               />
@@ -328,6 +335,29 @@ export default function HomePage() {
           loadRecipes() // Reload recipes after successful import
         }}
       />
+
+      {/* Category Type Management Modal */}
+      <CategoryTypeManagementModal
+        isOpen={isCategoryTypeModalOpen}
+        onClose={() => setIsCategoryTypeModalOpen(false)}
+        onUpdate={() => {
+          loadCategories()
+          loadRecipes()
+        }}
+      />
+
+      {/* Category Label Management Modal */}
+      {labelManagementType && (
+        <CategoryLabelManagementModal
+          isOpen={!!labelManagementType}
+          onClose={() => setLabelManagementType(null)}
+          onUpdate={() => {
+            loadCategories()
+            loadRecipes()
+          }}
+          categoryType={labelManagementType}
+        />
+      )}
     </div>
   )
 }

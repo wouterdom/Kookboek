@@ -11,16 +11,17 @@ import {
   Minus,
   Plus,
   BookOpen,
-  Lightbulb,
   ChefHat,
   ListChecks,
   LayoutGrid,
+  ExternalLink,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Recipe, ParsedIngredient } from "@/types/supabase"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeSanitize from 'rehype-sanitize'
+import { ChefTip } from "@/components/chef-tip"
 
 export default function CookingModePage({
   params,
@@ -41,6 +42,19 @@ export default function CookingModePage({
   useEffect(() => {
     params.then(p => setSlug(p.slug))
   }, [params])
+
+  // Auto-print if print parameter is present
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (searchParams.get('print') === 'true' && !loading && recipe) {
+        // Small delay to ensure everything is rendered
+        setTimeout(() => {
+          window.print()
+        }, 500)
+      }
+    }
+  }, [loading, recipe])
 
   // Fetch recipe and ingredients
   const loadRecipe = useCallback(async () => {
@@ -263,10 +277,23 @@ export default function CookingModePage({
             {recipe.source_name && (
               <>
                 <span className="hidden text-gray-300 sm:inline">•</span>
-                <div className="hidden items-center gap-1 sm:flex">
-                  <BookOpen className="h-4 w-4" />
-                  <span>{recipe.source_name}</span>
-                </div>
+                {recipe.source_url ? (
+                  <a
+                    href={recipe.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden items-center gap-1 sm:flex hover:text-primary transition-colors"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span>{recipe.source_name}</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <div className="hidden items-center gap-1 sm:flex">
+                    <BookOpen className="h-4 w-4" />
+                    <span>{recipe.source_name}</span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -353,17 +380,9 @@ export default function CookingModePage({
                 )
               )}
 
-              {/* Tip Section */}
+              {/* Chef Tip - Notities */}
               {recipe.notes && (
-                <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                  <div className="flex gap-3">
-                    <Lightbulb className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
-                    <div>
-                      <strong className="mb-1 block text-blue-900">Tip</strong>
-                      <p className="whitespace-pre-wrap text-sm text-blue-800">{recipe.notes}</p>
-                    </div>
-                  </div>
-                </div>
+                <ChefTip content={recipe.notes} />
               )}
             </div>
           </div>
@@ -373,22 +392,65 @@ export default function CookingModePage({
       {/* Print Styles */}
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 1.5cm;
+          }
+
+          /* Hide non-essential elements */
           .no-print {
             display: none !important;
           }
 
+          /* Reset sticky positioning for print */
           .lg\\:sticky {
             position: relative !important;
             max-height: none !important;
           }
 
-          .grid-cols-1 {
-            display: block !important;
+          /* Ensure grid layout works in print */
+          .grid {
+            display: grid !important;
           }
 
-          @page {
-            size: A4;
-            margin: 2cm;
+          /* Force side-by-side layout on print */
+          .lg\\:grid-cols-5 {
+            grid-template-columns: 2fr 3fr !important;
+          }
+
+          /* Remove shadows and backgrounds for cleaner print */
+          .shadow-sm {
+            box-shadow: none !important;
+          }
+
+          .bg-gray-50 {
+            background-color: white !important;
+          }
+
+          /* Ensure ingredients don't break across pages */
+          .lg\\:col-span-2 > div {
+            break-inside: avoid !important;
+          }
+
+          /* Compact spacing */
+          .space-y-6 > div {
+            margin-bottom: 0.75rem !important;
+          }
+
+          /* Hide checkboxes in print */
+          input[type="checkbox"] {
+            display: none !important;
+          }
+
+          /* Remove line-through from checked ingredients in print */
+          .line-through {
+            text-decoration: none !important;
+            opacity: 1 !important;
+          }
+
+          /* Ensure text is black for better print quality */
+          body {
+            color: black !important;
           }
         }
       `}</style>

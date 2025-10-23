@@ -1,3 +1,11 @@
+// Fixed soft yellow color for all category labels
+export const CATEGORY_LABEL_COLOR = {
+  value: '#fef3c7', // amber-100
+  textColor: '#92400e', // amber-800
+  borderColor: '#fde68a', // amber-200
+} as const;
+
+// Legacy color array - kept for backward compatibility but no longer used for new categories
 export const CATEGORY_COLORS = [
   { name: 'Rood', value: '#ef4444', bgClass: 'bg-red-500', textClass: 'text-white' },
   { name: 'Oranje', value: '#f97316', bgClass: 'bg-orange-500', textClass: 'text-white' },
@@ -19,17 +27,11 @@ export const CATEGORY_COLORS = [
   { name: 'Slate', value: '#64748b', bgClass: 'bg-slate-500', textClass: 'text-white' },
 ] as const;
 
-export function getCategoryStyle(color: string) {
-  const colorConfig = CATEGORY_COLORS.find(c => c.value === color);
-  if (colorConfig) {
-    return {
-      backgroundColor: colorConfig.value,
-      color: colorConfig.textClass === 'text-white' ? '#ffffff' : '#111827',
-    };
-  }
-  // Fallback for custom colors or old format
+// Always returns the fixed soft yellow color for all categories
+export function getCategoryStyle(color?: string) {
   return {
-    backgroundColor: color.startsWith('#') ? color : '#6b7280',
-    color: '#ffffff',
+    backgroundColor: CATEGORY_LABEL_COLOR.value,
+    color: CATEGORY_LABEL_COLOR.textColor,
+    borderColor: CATEGORY_LABEL_COLOR.borderColor,
   };
 }

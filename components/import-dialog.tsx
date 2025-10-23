@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react"
 import { X, Upload, Image as ImageIcon, Camera } from "lucide-react"
 import Image from "next/image"
-import { Modal } from "./modal"
+import { toast } from "sonner"
 
 interface ImportDialogProps {
   isOpen: boolean
@@ -21,25 +21,9 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Modal state
-  const [modalConfig, setModalConfig] = useState<{
-    isOpen: boolean
-    title?: string
-    message: string
-    type: 'info' | 'success' | 'error' | 'warning'
-  }>({
-    isOpen: false,
-    message: '',
-    type: 'info'
-  })
-
   const addPhotos = useCallback((files: File[]) => {
     if (photos.length + files.length > 10) {
-      setModalConfig({
-        isOpen: true,
-        message: "Maximum 10 foto's toegestaan",
-        type: 'warning'
-      })
+      toast.warning("Maximum 10 foto's toegestaan")
       return
     }
 
@@ -94,11 +78,7 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
 
   const handleImport = useCallback(async () => {
     if (!url && photos.length === 0 && !pastedContent) {
-      setModalConfig({
-        isOpen: true,
-        message: "Voer een URL in, upload minimaal 1 foto, of plak de receptinhoud",
-        type: 'warning'
-      })
+      toast.warning("Voer een URL in, upload minimaal 1 foto, of plak de receptinhoud")
       return
     }
 
@@ -138,6 +118,7 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
       if (response && response.ok) {
         const data = await response.json()
         console.log('Recipe imported successfully:', data)
+        toast.success('Recept succesvol geïmporteerd')
         onSuccess?.()
         onClose()
       } else {
@@ -154,11 +135,7 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
     } catch (error) {
       console.error('Import error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Er ging iets mis bij het importeren. Probeer het opnieuw.'
-      setModalConfig({
-        isOpen: true,
-        message: errorMessage,
-        type: 'error'
-      })
+      toast.error(errorMessage)
     } finally {
       setIsImporting(false)
     }
@@ -168,10 +145,10 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-lg bg-white p-8 shadow-lg">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-4 sm:p-6 md:p-8 shadow-lg">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-[Montserrat] text-xl font-bold">Importeer Recept</h2>
+          <h2 className="font-[Montserrat] text-lg sm:text-xl font-bold">Importeer Recept</h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-gray-100 transition-colors"
@@ -181,14 +158,14 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* URL Import Section */}
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
-                <span className="text-sm font-bold text-[oklch(var(--primary))]">1</span>
+            <div className="mb-2 sm:mb-3 flex items-center gap-2">
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
+                <span className="text-xs sm:text-sm font-bold text-[oklch(var(--primary))]">1</span>
               </div>
-              <h3 className="text-base font-semibold">Van URL</h3>
+              <h3 className="text-sm sm:text-base font-semibold">Van URL</h3>
             </div>
             <input
               type="url"
@@ -215,11 +192,11 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
 
           {/* Paste Content Section */}
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
-                <span className="text-sm font-bold text-[oklch(var(--primary))]">2</span>
+            <div className="mb-2 sm:mb-3 flex items-center gap-2">
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
+                <span className="text-xs sm:text-sm font-bold text-[oklch(var(--primary))]">2</span>
               </div>
-              <h3 className="text-base font-semibold">Plak Receptinhoud</h3>
+              <h3 className="text-sm sm:text-base font-semibold">Plak Receptinhoud</h3>
             </div>
             <textarea
               placeholder="Plak hier de volledige inhoud van de receptpagina..."
@@ -254,24 +231,24 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
 
           {/* Photo Upload Section */}
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
-                <span className="text-sm font-bold text-[oklch(var(--primary))]">3</span>
+            <div className="mb-2 sm:mb-3 flex items-center gap-2">
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[oklch(var(--primary)/0.1)]">
+                <span className="text-xs sm:text-sm font-bold text-[oklch(var(--primary))]">3</span>
               </div>
-              <h3 className="text-base font-semibold">Van Foto's</h3>
+              <h3 className="text-sm sm:text-base font-semibold">Van Foto's</h3>
             </div>
             <div
               onClick={() => !url && !pastedContent && fileInputRef.current?.click()}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+              className={`cursor-pointer rounded-lg border-2 border-dashed p-4 sm:p-6 text-center transition-colors ${
                 isDragging ? 'border-[oklch(var(--primary))] bg-[oklch(var(--primary)/0.05)]' :
                 'border-[oklch(var(--border))] hover:bg-gray-50'
               } ${url || pastedContent ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <Camera className="mx-auto mb-2 h-10 w-10 text-[oklch(var(--muted-foreground))]" />
-              <p className="mb-1 text-sm font-medium">
+              <Camera className="mx-auto mb-2 h-8 w-8 sm:h-10 sm:w-10 text-[oklch(var(--muted-foreground))]" />
+              <p className="mb-1 text-xs sm:text-sm font-medium">
                 Sleep foto's hierheen of klik om te uploaden
               </p>
               <p className="text-xs text-[oklch(var(--muted-foreground))]">
@@ -289,11 +266,11 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
             </div>
 
             {photos.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-2 text-sm font-medium text-[oklch(var(--foreground))]">
+              <div className="mt-3 sm:mt-4">
+                <p className="mb-2 text-xs sm:text-sm font-medium text-[oklch(var(--foreground))]">
                   {photos.length} foto{photos.length !== 1 ? "'s" : ''} geselecteerd
                 </p>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                   {photoPreviews.map((preview, index) => (
                     <div
                       key={index}
@@ -330,7 +307,7 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
             )}
           </div>
 
-          <div className="mt-8 flex gap-3">
+          <div className="mt-6 sm:mt-8 flex gap-2 sm:gap-3">
             <button onClick={onClose} className="btn btn-outline flex-1" disabled={isImporting}>
               Annuleren
             </button>
@@ -339,21 +316,12 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
               className="btn btn-primary flex-1"
               disabled={isImporting || (!url && photos.length === 0 && !pastedContent)}
             >
-              {isImporting ? 'Bezig met importeren...' : 'Importeren'}
+              {isImporting ? 'Bezig...' : 'Importeren'}
             </button>
           </div>
         </div>
       </div>
       </div>
-
-      {/* Modal for alerts and errors */}
-      <Modal
-        isOpen={modalConfig.isOpen}
-        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        type={modalConfig.type}
-      />
     </>
   )
 }

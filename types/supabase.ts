@@ -23,6 +23,7 @@ export interface Database {
           image_url: string | null
           source_url: string | null
           source_name: string | null
+          source_normalized: string | null
           source_language: string | null
           labels: string[] | null
           is_favorite: boolean
@@ -45,6 +46,7 @@ export interface Database {
           image_url?: string | null
           source_url?: string | null
           source_name?: string | null
+          source_normalized?: string | null
           source_language?: string | null
           labels?: string[] | null
           is_favorite?: boolean
@@ -67,6 +69,7 @@ export interface Database {
           image_url?: string | null
           source_url?: string | null
           source_name?: string | null
+          source_normalized?: string | null
           source_language?: string | null
           labels?: string[] | null
           is_favorite?: boolean
@@ -172,6 +175,81 @@ export interface Database {
           created_at?: string
         }
       }
+      category_types: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          description: string | null
+          allow_multiple: boolean
+          order_index: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          description?: string | null
+          allow_multiple?: boolean
+          order_index?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          description?: string | null
+          allow_multiple?: boolean
+          order_index?: number | null
+          created_at?: string
+        }
+      }
+      categories: {
+        Row: {
+          id: string
+          name: string
+          slug: string | null
+          color: string
+          type_id: string | null
+          order_index: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug?: string | null
+          color: string
+          type_id?: string | null
+          order_index?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string | null
+          color?: string
+          type_id?: string | null
+          order_index?: number | null
+          created_at?: string
+        }
+      }
+      recipe_categories: {
+        Row: {
+          recipe_id: string
+          category_id: string
+          created_at: string
+        }
+        Insert: {
+          recipe_id: string
+          category_id: string
+          created_at?: string
+        }
+        Update: {
+          recipe_id?: string
+          category_id?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -204,3 +282,34 @@ export type RecipeTagUpdate = Database['public']['Tables']['recipe_tags']['Updat
 export type ExtractedKeyword = Database['public']['Tables']['extracted_keywords']['Row']
 export type ExtractedKeywordInsert = Database['public']['Tables']['extracted_keywords']['Insert']
 export type ExtractedKeywordUpdate = Database['public']['Tables']['extracted_keywords']['Update']
+
+export type CategoryType = Database['public']['Tables']['category_types']['Row']
+export type CategoryTypeInsert = Database['public']['Tables']['category_types']['Insert']
+export type CategoryTypeUpdate = Database['public']['Tables']['category_types']['Update']
+
+export type Category = Database['public']['Tables']['categories']['Row']
+export type CategoryInsert = Database['public']['Tables']['categories']['Insert']
+export type CategoryUpdate = Database['public']['Tables']['categories']['Update']
+
+export type RecipeCategory = Database['public']['Tables']['recipe_categories']['Row']
+export type RecipeCategoryInsert = Database['public']['Tables']['recipe_categories']['Insert']
+export type RecipeCategoryUpdate = Database['public']['Tables']['recipe_categories']['Update']
+
+// Extended types met relaties
+export type CategoryWithType = Category & {
+  category_type: CategoryType
+}
+
+export type RecipeWithCategories = Recipe & {
+  recipe_categories: Array<{
+    category: CategoryWithType
+  }>
+}
+
+// Categorieën gegroepeerd per type voor UI
+export type CategoriesByType = {
+  [typeSlug: string]: {
+    type: CategoryType
+    categories: Category[]
+  }
+}

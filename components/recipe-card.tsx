@@ -4,11 +4,12 @@ import Image from "next/image"
 import Link from "next/link"
 import { Heart, Clock, Users, Trash2 } from "lucide-react"
 import { Recipe } from "@/types/supabase"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { getCategoryStyle } from "@/lib/colors"
 import { ConfirmModal, Modal } from "./modal"
 import { useRouter } from "next/navigation"
+import { RecipeCardCategoryQuickAdd } from "./recipe-card-category-quick-add"
 
 interface RecipeCardProps {
   recipe: Recipe
@@ -23,8 +24,26 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [recipeCategoryIds, setRecipeCategoryIds] = useState<string[]>([])
   const supabase = createClient()
   const router = useRouter()
+
+  // Load recipe categories
+  useEffect(() => {
+    const loadRecipeCategories = async () => {
+      try {
+        const response = await fetch(`/api/recipes/${recipe.slug}/categories`)
+        if (response.ok) {
+          const data = await response.json()
+          setRecipeCategoryIds(data.map((rc: any) => rc.category_id))
+        }
+      } catch (error) {
+        console.error('Error loading recipe categories:', error)
+      }
+    }
+
+    loadRecipeCategories()
+  }, [recipe.slug])
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -82,6 +101,22 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
 
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
 
+  const handleCategoryUpdate = () => {
+    // Reload categories and refresh the card
+    const loadRecipeCategories = async () => {
+      try {
+        const response = await fetch(`/api/recipes/${recipe.slug}/categories`)
+        if (response.ok) {
+          const data = await response.json()
+          setRecipeCategoryIds(data.map((rc: any) => rc.category_id))
+        }
+      } catch (error) {
+        console.error('Error loading recipe categories:', error)
+      }
+    }
+    loadRecipeCategories()
+  }
+
   return (
     <Link href={`/recipes/${recipe.slug}`}>
       <div className="card group">
@@ -109,30 +144,29 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
               }`}
             />
           </button>
+
         </div>
         <div className="p-4 relative">
+          {/* Category Quick Add Button - In card content area */}
+          <RecipeCardCategoryQuickAdd
+            recipeId={recipe.id}
+            recipeSlug={recipe.slug}
+            selectedCategoryIds={recipeCategoryIds}
+            onUpdate={handleCategoryUpdate}
+          />
           <h3 className="mb-2 text-lg font-semibold line-clamp-2">{recipe.title}</h3>
 
           {recipe.labels && recipe.labels.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {recipe.labels.map((label) => {
-                const category = categories.find(c => c.name === label)
-                return (
-                  <span
-                    key={label}
-                    className="px-3 py-1 rounded-full text-xs font-medium"
-                    style={category ? getCategoryStyle(category.color) : { backgroundColor: '#6b7280', color: '#ffffff' }}
-                  >
-                    {label}
-                  </span>
-                )
-              })}
-            </div>
-          )}
-
-          {recipe.source_name && (
-            <div className="mb-2 text-xs text-[oklch(var(--muted-foreground))]">
-              Bron: {recipe.source_name}
+              {recipe.labels.map((label) => (
+                <span
+                  key={label}
+                  className="px-3 py-1 rounded-full text-xs font-medium border-2"
+                  style={getCategoryStyle()}
+                >
+                  {label}
+                </span>
+              ))}
             </div>
           )}
 

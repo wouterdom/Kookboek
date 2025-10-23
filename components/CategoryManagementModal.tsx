@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { X, Trash2, Edit2, Check } from "lucide-react"
-import { ColorPicker } from "./ColorPicker"
 import { CategoryDeleteModal } from "./CategoryDeleteModal"
 import { getCategoryStyle } from "@/lib/colors"
 
@@ -21,19 +20,16 @@ interface CategoryManagementModalProps {
 export function CategoryManagementModal({ categories, onClose, onUpdate }: CategoryManagementModalProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
-  const [editColor, setEditColor] = useState("")
   const [deleteCategory, setDeleteCategory] = useState<Category | null>(null)
 
   const startEdit = (category: Category) => {
     setEditingId(category.id)
     setEditName(category.name)
-    setEditColor(category.color)
   }
 
   const cancelEdit = () => {
     setEditingId(null)
     setEditName("")
-    setEditColor("")
   }
 
   const saveEdit = async () => {
@@ -43,7 +39,7 @@ export function CategoryManagementModal({ categories, onClose, onUpdate }: Categ
       const response = await fetch(`/api/categories/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim(), color: editColor })
+        body: JSON.stringify({ name: editName.trim() })
       })
 
       if (response.ok) {
@@ -102,21 +98,19 @@ export function CategoryManagementModal({ categories, onClose, onUpdate }: Categ
               >
                 {editingId === category.id ? (
                   <>
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1">
                       <input
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded"
                         placeholder="Categorie naam"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEdit()
+                          if (e.key === 'Escape') cancelEdit()
+                        }}
+                        autoFocus
                       />
-                      <div>
-                        <p className="text-sm text-gray-600 mb-2">Kies een kleur:</p>
-                        <ColorPicker
-                          selectedColor={editColor}
-                          onColorSelect={setEditColor}
-                        />
-                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button

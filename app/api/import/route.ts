@@ -91,6 +91,91 @@ async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: 
   }
 }
 
+/**
+ * Generate AI food image using Gemini 2.5 Flash Image
+ * Saves the image to Supabase Storage and returns the public URL
+ *
+ * @param recipeTitle - The title of the recipe (e.g., "Lemon Meringue Taart")
+ * @param slug - The slug of the recipe (for storage path)
+ * @param supabase - Supabase client
+ * @returns URL of the generated and uploaded image
+ */
+async function generateRecipeImage(
+  recipeTitle: string,
+  slug: string,
+  supabase: any
+): Promise<string | null> {
+  try {
+    // Use Gemini 2.5 Flash Image model for image generation
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' })
+
+    // Craft a professional food photography prompt
+    const prompt = `A professional, high-quality food photography shot of ${recipeTitle}. The dish is beautifully plated on a clean white or neutral background. Studio lighting with soft shadows. The food looks fresh, appetizing, and restaurant-quality. Focus on making the dish look delicious and inviting. Top-down or 45-degree angle. High resolution, sharp focus.`
+
+    console.log(`Generating AI image for: ${recipeTitle}`)
+
+    // Generate the image
+    const result = await model.generateContent(prompt)
+    const response = result.response
+
+    // Extract image data from response
+    let imageBase64: string | null = null
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData && part.inlineData.data) {
+        imageBase64 = part.inlineData.data
+        break
+      }
+    }
+
+    if (!imageBase64) {
+      console.error('No image data returned from Gemini')
+      return null
+    }
+
+    console.log(`Generated image for "${recipeTitle}", uploading to Supabase...`)
+
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(imageBase64, 'base64')
+
+    // Generate unique filename
+    const timestamp = Date.now()
+    const randomStr = Math.random().toString(36).substring(2, 8)
+    const filename = `${slug}-${timestamp}-${randomStr}.png`
+    const filePath = `recipe-images/${filename}`
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('recipe-images')
+      .upload(filePath, imageBuffer, {
+        contentType: 'image/png',
+        cacheControl: '3600',
+        upsert: false
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      return null
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('recipe-images')
+      .getPublicUrl(filePath)
+
+    console.log(`Uploaded generated image for "${recipeTitle}": ${publicUrl.substring(0, 50)}...`)
+
+    return publicUrl
+
+  } catch (error) {
+    console.error('Error generating AI image:', error)
+    // Return null to allow recipe import without image
+    return null
+  }
+}
+
 // Recipe extraction prompt
 const RECIPE_PROMPT = `
 Extract recipe information from the content. Return ONLY valid JSON matching this structure.
@@ -348,16 +433,10 @@ export async function POST(request: NextRequest) {
       imageUrl = await downloadAndUploadImage(recipeData.extracted_image_url, slug, supabase)
     }
 
-    // If image extraction failed, search for a fallback image based on the recipe title
+    // If image extraction failed, generate AI image with Gemini
     if (!imageUrl && recipeData.title) {
-      try {
-        // Use Unsplash for fallback images
-        const searchTerm = encodeURIComponent(recipeData.title.split(' ').slice(0, 2).join(' '))
-        const unsplashUrl = `https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop&q=80`
-        imageUrl = unsplashUrl // Use a generic food image as ultimate fallback
-      } catch (error) {
-        console.error('Error getting fallback image:', error)
-      }
+      console.log(`No image found for "${recipeData.title}", generating AI image...`)
+      imageUrl = await generateRecipeImage(recipeData.title, slug, supabase)
     }
 
     // Insert recipe into database - be very lenient with data

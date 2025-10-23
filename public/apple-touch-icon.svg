@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <!-- Background with teal -->
+  <rect width="180" height="180" rx="40" fill="#36B5AC"/>
+
+  <!-- Cookbook illustration -->
+  <!-- Book -->
+  <rect x="45" y="40" width="90" height="100" rx="4" fill="#FFFFFF" opacity="0.95"/>
+
+  <!-- Book spine -->
+  <rect x="89" y="40" width="2" height="100" fill="#2A9A92" opacity="0.3"/>
+
+  <!-- Left page decorative lines -->
+  <rect x="55" y="60" width="30" height="3" rx="1.5" fill="#36B5AC" opacity="0.6"/>
+  <rect x="55" y="70" width="25" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+  <rect x="55" y="78" width="28" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+  <rect x="55" y="86" width="22" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+
+  <!-- Chef hat on left page -->
+  <g transform="translate(58, 95)">
+    <ellipse cx="12" cy="18" rx="14" ry="4" fill="#36B5AC" opacity="0.3"/>
+    <path d="M 3 18 Q 3 8 12 5 Q 21 8 21 18 Z" fill="#36B5AC" opacity="0.6"/>
+    <circle cx="12" cy="9" r="3.5" fill="#36B5AC" opacity="0.5"/>
+  </g>
+
+  <!-- Right page - utensils -->
+  <g transform="translate(100, 55)">
+    <!-- Fork -->
+    <path d="M 5 0 L 5 15 Q 5 18 8 18 Q 11 18 11 15 L 11 5" stroke="#36B5AC" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <line x1="5" y1="0" x2="5" y2="7" stroke="#36B5AC" stroke-width="2" stroke-linecap="round"/>
+    <line x1="8" y1="0" x2="8" y2="7" stroke="#36B5AC" stroke-width="2" stroke-linecap="round"/>
+    <line x1="11" y1="0" x2="11" y2="7" stroke="#36B5AC" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Spoon -->
+    <ellipse cx="20" cy="4" rx="3" ry="4" fill="none" stroke="#36B5AC" stroke-width="2"/>
+    <line x1="20" y1="8" x2="20" y2="18" stroke="#36B5AC" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Right page decorative lines -->
+  <rect x="100" y="80" width="25" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+  <rect x="100" y="88" width="28" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+  <rect x="100" y="96" width="22" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+  <rect x="100" y="104" width="26" height="2" rx="1" fill="#2A9A92" opacity="0.5"/>
+</svg>

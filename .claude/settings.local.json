@@ -40,7 +40,9 @@
       "Bash(taskkill /F /PID 33536)",
       "Bash(taskkill //F //PID 33536)",
       "Bash(taskkill //F //PID 3276)",
-      "Read(//c/Users/wdom/Downloads/**)"
+      "Read(//c/Users/wdom/Downloads/**)",
+      "WebFetch(domain:www.flaticon.com)",
+      "Bash(timeout /t 5 /nobreak)"
     ],
     "deny": [],
     "ask": []

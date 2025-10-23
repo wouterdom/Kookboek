@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { toast } from "sonner"
 import {
   ArrowLeft,
   Edit3,
@@ -18,6 +19,7 @@ import {
   Lightbulb,
   Settings,
   Trash2,
+  ExternalLink,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,11 +28,13 @@ import { Recipe, ParsedIngredient } from "@/types/supabase"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeSanitize from 'rehype-sanitize'
-import { ColorPicker } from "@/components/ColorPicker"
 import { CategoryManagementModal } from "@/components/CategoryManagementModal"
 import { ImageUploadModal } from "@/components/ImageUploadModal"
-import { ConfirmModal, Modal } from "@/components/modal"
-import { getCategoryStyle, CATEGORY_COLORS } from "@/lib/colors"
+import { ConfirmModal } from "@/components/modal"
+import { getCategoryStyle, CATEGORY_LABEL_COLOR } from "@/lib/colors"
+import { ChefTip } from "@/components/chef-tip"
+import { RecipeCategorySelector } from "@/components/recipe-category-selector"
+import { InlineEditButton } from "@/components/inline-edit-button"
 
 export default function RecipeDetailPage({
   params,
@@ -57,23 +61,25 @@ export default function RecipeDetailPage({
   const [availableCategories, setAvailableCategories] = useState<{ id: string; name: string; color: string }[]>([])
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
-  const [newCategoryColor, setNewCategoryColor] = useState(CATEGORY_COLORS[0].value)
   const [showManagementModal, setShowManagementModal] = useState(false)
+  const [recipeCategoryIds, setRecipeCategoryIds] = useState<string[]>([])
   const [showImageUploadModal, setShowImageUploadModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Modal state for alerts
-  const [modalConfig, setModalConfig] = useState<{
-    isOpen: boolean
-    title?: string
-    message: string
-    type: 'info' | 'success' | 'error' | 'warning'
-  }>({
-    isOpen: false,
-    message: '',
-    type: 'info'
-  })
+  // Inline edit states for metadata
+  const [isEditingMetadata, setIsEditingMetadata] = useState(false)
+  const [tempPrepTime, setTempPrepTime] = useState<number | null>(null)
+  const [tempCookTime, setTempCookTime] = useState<number | null>(null)
+  const [tempDifficulty, setTempDifficulty] = useState<string | null>(null)
+  const [tempServings, setTempServings] = useState<number | null>(null)
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false)
+
+  // Inline edit states for source
+  const [isEditingSource, setIsEditingSource] = useState(false)
+  const [tempSourceName, setTempSourceName] = useState<string>('')
+  const [tempSourceUrl, setTempSourceUrl] = useState<string>('')
+  const [isSavingSource, setIsSavingSource] = useState(false)
 
   // Edit mode states
   const [editTitle, setEditTitle] = useState('')
@@ -84,6 +90,7 @@ export default function RecipeDetailPage({
   const [editDifficulty, setEditDifficulty] = useState<string | null>(null)
   const [editInstructions, setEditInstructions] = useState('')
   const [editSourceName, setEditSourceName] = useState('')
+  const [editSourceUrl, setEditSourceUrl] = useState('')
   const [editIngredients, setEditIngredients] = useState<ParsedIngredient[]>([])
   const [editImageUrl, setEditImageUrl] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -117,6 +124,13 @@ export default function RecipeDetailPage({
         setNotes(recipeData.notes || '')
         setLabels(recipeData.labels || [])
 
+        // Fetch recipe categories
+        const categoriesResponse = await fetch(`/api/recipes/${slug}/categories`)
+        if (categoriesResponse.ok) {
+          const categoriesData = await categoriesResponse.json()
+          setRecipeCategoryIds(categoriesData.map((rc: any) => rc.category_id))
+        }
+
         // Initialize edit states
         setEditTitle(recipeData.title)
         setEditDescription(recipeData.description || '')
@@ -126,6 +140,7 @@ export default function RecipeDetailPage({
         setEditDifficulty(recipeData.difficulty)
         setEditInstructions(recipeData.content_markdown || '')
         setEditSourceName(recipeData.source_name || '')
+        setEditSourceUrl(recipeData.source_url || '')
         setEditImageUrl(recipeData.image_url || '')
 
         // Fetch ingredients
@@ -247,7 +262,7 @@ export default function RecipeDetailPage({
       const response = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategoryName.trim(), color: newCategoryColor })
+        body: JSON.stringify({ name: newCategoryName.trim(), color: CATEGORY_LABEL_COLOR.value })
       })
 
       if (response.ok) {
@@ -255,23 +270,15 @@ export default function RecipeDetailPage({
         await loadCategories()
         await addCategoryToRecipe(newCategory.name)
         setNewCategoryName('')
-        setNewCategoryColor(CATEGORY_COLORS[0].value)
         setIsAddingNewCategory(false)
+        toast.success('Categorie aangemaakt')
       } else {
         const error = await response.json()
-        setModalConfig({
-          isOpen: true,
-          message: error.error || 'Fout bij aanmaken categorie',
-          type: 'error'
-        })
+        toast.error(error.error || 'Fout bij aanmaken categorie')
       }
     } catch (error) {
       console.error('Error creating category:', error)
-      setModalConfig({
-        isOpen: true,
-        message: 'Fout bij aanmaken categorie',
-        type: 'error'
-      })
+      toast.error('Fout bij aanmaken categorie')
     }
   }
 
@@ -315,9 +322,34 @@ export default function RecipeDetailPage({
     setCheckedIngredients(newChecked)
   }
 
-  // Image upload handler
-  const handleImageUpload = (imageUrl: string) => {
+  // Image upload handler - now saves directly
+  const handleImageUpload = async (imageUrl: string) => {
+    if (!recipe) return
+
     setEditImageUrl(imageUrl)
+
+    // If not in edit mode, save directly
+    if (!isEditMode) {
+      try {
+        const response = await fetch(`/api/recipes/${slug}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_url: imageUrl,
+          })
+        })
+
+        if (response.ok) {
+          await loadRecipe()
+          toast.success('Foto opgeslagen')
+        } else {
+          toast.error('Fout bij opslaan van foto')
+        }
+      } catch (error) {
+        console.error('Error saving image:', error)
+        toast.error('Fout bij opslaan van foto')
+      }
+    }
   }
 
   // Add ingredient
@@ -381,6 +413,7 @@ export default function RecipeDetailPage({
           difficulty: editDifficulty,
           content_markdown: editInstructions,
           source_name: editSourceName,
+          source_url: editSourceUrl,
           image_url: editImageUrl,
           ingredients: editIngredients.map((ing, index) => ({
             ingredient_name_nl: ing.ingredient_name_nl,
@@ -398,26 +431,13 @@ export default function RecipeDetailPage({
         // Reload recipe to show updated data
         await loadRecipe()
         setIsEditMode(false)
-        setModalConfig({
-          isOpen: true,
-          title: 'Opgeslagen!',
-          message: 'Recept succesvol opgeslagen',
-          type: 'success'
-        })
+        toast.success('Recept succesvol opgeslagen')
       } else {
-        setModalConfig({
-          isOpen: true,
-          message: 'Fout bij opslaan van recept',
-          type: 'error'
-        })
+        toast.error('Fout bij opslaan van recept')
       }
     } catch (error) {
       console.error('Error saving recipe:', error)
-      setModalConfig({
-        isOpen: true,
-        message: 'Fout bij opslaan van recept',
-        type: 'error'
-      })
+      toast.error('Fout bij opslaan van recept')
     } finally {
       setIsSaving(false)
     }
@@ -436,6 +456,7 @@ export default function RecipeDetailPage({
     setEditDifficulty(recipe.difficulty)
     setEditInstructions(recipe.content_markdown || '')
     setEditSourceName(recipe.source_name || '')
+    setEditSourceUrl(recipe.source_url || '')
     setEditImageUrl(recipe.image_url || '')
     setEditIngredients([...ingredients])
     setIsEditMode(false)
@@ -455,18 +476,107 @@ export default function RecipeDetailPage({
       }
 
       // Navigate back to home after successful deletion
+      toast.success('Recept verwijderd')
       router.push('/')
     } catch (error) {
       console.error('Error deleting recipe:', error)
-      setModalConfig({
-        isOpen: true,
-        message: 'Er ging iets mis bij het verwijderen. Probeer het opnieuw.',
-        type: 'error'
-      })
+      toast.error('Er ging iets mis bij het verwijderen. Probeer het opnieuw.')
     } finally {
       setIsDeleting(false)
       setShowDeleteModal(false)
     }
+  }
+
+  // Inline metadata editing functions
+  const startEditingMetadata = () => {
+    if (!recipe) return
+    setTempPrepTime(recipe.prep_time)
+    setTempCookTime(recipe.cook_time)
+    setTempDifficulty(recipe.difficulty)
+    setTempServings(recipe.servings_default)
+    setIsEditingMetadata(true)
+  }
+
+  const saveMetadata = async () => {
+    if (!recipe) return
+
+    setIsSavingMetadata(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prep_time: tempPrepTime,
+          cook_time: tempCookTime,
+          difficulty: tempDifficulty,
+          servings_default: tempServings,
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingMetadata(false)
+        toast.success('Metadata opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van metadata')
+      }
+    } catch (error) {
+      console.error('Error saving metadata:', error)
+      toast.error('Fout bij opslaan van metadata')
+    } finally {
+      setIsSavingMetadata(false)
+    }
+  }
+
+  const cancelMetadataEdit = () => {
+    setIsEditingMetadata(false)
+    setTempPrepTime(null)
+    setTempCookTime(null)
+    setTempDifficulty(null)
+    setTempServings(null)
+  }
+
+  // Inline source editing functions
+  const startEditingSource = () => {
+    if (!recipe) return
+    setTempSourceName(recipe.source_name || '')
+    setTempSourceUrl(recipe.source_url || '')
+    setIsEditingSource(true)
+  }
+
+  const saveSource = async () => {
+    if (!recipe) return
+
+    setIsSavingSource(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_name: tempSourceName || null,
+          source_url: tempSourceUrl || null,
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingSource(false)
+        toast.success('Bron opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van bron')
+      }
+    } catch (error) {
+      console.error('Error saving source:', error)
+      toast.error('Fout bij opslaan van bron')
+    } finally {
+      setIsSavingSource(false)
+    }
+  }
+
+  const cancelSourceEdit = () => {
+    setIsEditingSource(false)
+    setTempSourceName('')
+    setTempSourceUrl('')
   }
 
   const getDifficultyColor = (difficulty: string | null) => {
@@ -477,6 +587,35 @@ export default function RecipeDetailPage({
       default: return 'badge'
     }
   }
+
+  // Parse markdown instructions into steps
+  const parseInstructions = (markdown: string | null) => {
+    if (!markdown) return []
+
+    const lines = markdown.split('\n')
+    const steps: string[] = []
+    let currentStep = ''
+
+    lines.forEach(line => {
+      const trimmed = line.trim()
+      // Check if line starts with a number followed by . or )
+      if (/^\d+[\.\)]/.test(trimmed)) {
+        if (currentStep) steps.push(currentStep.trim())
+        currentStep = trimmed.replace(/^\d+[\.\)]\s*/, '')
+      } else if (trimmed) {
+        currentStep += (currentStep ? ' ' : '') + trimmed
+      } else if (currentStep) {
+        steps.push(currentStep.trim())
+        currentStep = ''
+      }
+    })
+
+    if (currentStep) steps.push(currentStep.trim())
+
+    return steps.length > 0 ? steps : [markdown]
+  }
+
+  const instructionSteps = parseInstructions(recipe?.content_markdown || null)
 
   if (loading) {
     return (
@@ -498,15 +637,40 @@ export default function RecipeDetailPage({
     <div className="min-h-screen">
       {/* Header with Back and Print buttons */}
       <header className="no-print sticky top-0 z-50 w-full border-b bg-white">
-        <div className="container mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <button
-            onClick={() => router.back()}
-            className="btn btn-outline btn-sm flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Terug</span>
-          </button>
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto flex max-w-5xl items-center px-4 py-4">
+          {/* Left: Back button */}
+          <div className="flex flex-1 items-center">
+            <button
+              onClick={() => router.back()}
+              className="btn btn-outline btn-sm flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Terug</span>
+            </button>
+          </div>
+
+          {/* Center: Cooking & Print buttons */}
+          {!isEditMode && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.push(`/recipes/${slug}/cooking`)}
+                className="btn btn-outline btn-sm flex items-center gap-2 text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <ChefHat className="h-4 w-4" />
+                <span className="hidden sm:inline">Koken</span>
+              </button>
+              <button
+                onClick={() => router.push(`/recipes/${slug}/cooking?print=true`)}
+                className="btn btn-outline btn-sm flex items-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                <span className="hidden sm:inline">Print</span>
+              </button>
+            </div>
+          )}
+
+          {/* Right: Edit & Delete buttons OR Save & Cancel */}
+          <div className="flex flex-1 items-center justify-end gap-2">
             {isEditMode ? (
               <>
                 <button
@@ -532,20 +696,6 @@ export default function RecipeDetailPage({
                 >
                   <Edit3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Bewerk</span>
-                </button>
-                <button
-                  onClick={() => router.push(`/recipes/${slug}/cooking`)}
-                  className="btn btn-outline btn-sm flex items-center gap-2 text-primary hover:bg-primary hover:text-primary-foreground"
-                >
-                  <ChefHat className="h-4 w-4" />
-                  <span className="hidden sm:inline">Koken</span>
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="btn btn-outline btn-sm flex items-center gap-2"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span className="hidden sm:inline">Print</span>
                 </button>
                 <button
                   onClick={() => setShowDeleteModal(true)}
@@ -575,20 +725,14 @@ export default function RecipeDetailPage({
               className="object-cover"
               unoptimized
             />
-            {isEditMode ? (
-              <button
-                onClick={() => setShowImageUploadModal(true)}
-                className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-primary/90"
-              >
-                <Edit3 className="h-4 w-4" />
-                Wijzig Foto
-              </button>
-            ) : (
-              <button className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all hover:bg-white">
-                <Bookmark className="h-4 w-4" />
-                Bewaar
-              </button>
-            )}
+            {/* Always show image edit button */}
+            <button
+              onClick={() => setShowImageUploadModal(true)}
+              className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all hover:bg-white"
+            >
+              <Edit3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Wijzig Foto</span>
+            </button>
           </div>
 
           {/* Recipe Content */}
@@ -626,231 +770,218 @@ export default function RecipeDetailPage({
               )}
             </div>
 
-            {/* Category Section */}
+            {/* Category Section - New */}
             <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-medium text-muted-foreground">Categorie:</h3>
-                <button
-                  onClick={() => setIsEditingLabels(!isEditingLabels)}
-                  className="text-xs text-primary hover:underline"
-                >
-                  {isEditingLabels ? 'Klaar' : 'Wijzigen'}
-                </button>
-                <button
-                  onClick={() => setShowManagementModal(true)}
-                  className="text-xs text-gray-600 hover:underline flex items-center gap-1"
-                  title="Beheer categorieën"
-                >
-                  <Settings className="h-3 w-3" />
-                  Beheer
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {labels.map((label) => {
-                  const category = availableCategories.find(c => c.name === label)
-                  return (
-                    <div
-                      key={label}
-                      className="px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium flex items-center gap-1 break-words max-w-full"
-                      style={category ? getCategoryStyle(category.color) : undefined}
-                    >
-                      <span className="break-words">{label}</span>
-                      {isEditingLabels && (
-                        <button
-                          onClick={() => removeLabel(label)}
-                          className="ml-1 hover:opacity-70 flex-shrink-0"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-                {isEditingLabels && (
-                  <>
-                    {availableCategories
-                      .filter(cat => !labels.includes(cat.name))
-                      .map((category) => (
-                        <button
-                          key={category.id}
-                          onClick={() => addCategoryToRecipe(category.name)}
-                          className="px-4 py-2 rounded-full text-sm font-medium opacity-60 hover:opacity-100 transition-opacity"
-                          style={getCategoryStyle(category.color)}
-                        >
-                          + {category.name}
-                        </button>
-                      ))}
-                    {!isAddingNewCategory ? (
-                      <button
-                        onClick={() => setIsAddingNewCategory(true)}
-                        className="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      >
-                        + Nieuwe categorie
-                      </button>
-                    ) : (
-                      <div className="w-full bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Categorieën:</h3>
+              {recipe && (
+                <RecipeCategorySelector
+                  recipeId={recipe.id}
+                  selectedCategoryIds={recipeCategoryIds}
+                  onUpdate={loadRecipe}
+                />
+              )}
+            </div>
+
+            {/* Metadata Badges - Only show when NOT in edit mode */}
+            {!isEditMode && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Recept details:</h3>
+                  {!isEditingMetadata && (
+                    <InlineEditButton
+                      isEditing={false}
+                      onEdit={startEditingMetadata}
+                      onSave={saveMetadata}
+                      onCancel={cancelMetadataEdit}
+                      isSaving={isSavingMetadata}
+                    />
+                  )}
+                  {isEditingMetadata && (
+                    <InlineEditButton
+                      isEditing={true}
+                      onEdit={startEditingMetadata}
+                      onSave={saveMetadata}
+                      onCancel={cancelMetadataEdit}
+                      isSaving={isSavingMetadata}
+                    />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 sm:gap-3">
+                  {isEditingMetadata ? (
+                    <>
+                      <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
+                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="hidden sm:inline">Bereidingstijd:</span>
+                        <span className="sm:hidden">Bereid:</span>
                         <input
-                          type="text"
-                          value={newCategoryName}
-                          onChange={(e) => setNewCategoryName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') createNewCategory()
-                            if (e.key === 'Escape') {
-                              setIsAddingNewCategory(false)
-                              setNewCategoryName('')
-                              setNewCategoryColor(CATEGORY_COLORS[0].value)
-                            }
-                          }}
-                          placeholder="Categorie naam"
-                          autoFocus
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
+                          type="number"
+                          value={tempPrepTime || ''}
+                          onChange={(e) => setTempPrepTime(e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
+                          placeholder="0"
                         />
-                        <div>
-                          <p className="text-xs text-gray-600 mb-2">Kies een kleur:</p>
-                          <ColorPicker
-                            selectedColor={newCategoryColor}
-                            onColorSelect={setNewCategoryColor}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={createNewCategory}
-                            className="px-4 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90"
-                          >
-                            Toevoegen
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsAddingNewCategory(false)
-                              setNewCategoryName('')
-                              setNewCategoryColor(CATEGORY_COLORS[0].value)
-                            }}
-                            className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300"
-                          >
-                            Annuleren
-                          </button>
-                        </div>
+                        <span>min</span>
                       </div>
+                      <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
+                        <ChefHat className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="hidden sm:inline">Kooktijd:</span>
+                        <span className="sm:hidden">Kook:</span>
+                        <input
+                          type="number"
+                          value={tempCookTime || ''}
+                          onChange={(e) => setTempCookTime(e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
+                          placeholder="0"
+                        />
+                        <span>min</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
+                        <Signal className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <select
+                          value={tempDifficulty || ''}
+                          onChange={(e) => setTempDifficulty(e.target.value || null)}
+                          className="text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent pr-1"
+                        >
+                          <option value="">Moeilijkheid</option>
+                          <option value="Makkelijk">Makkelijk</option>
+                          <option value="Gemiddeld">Gemiddeld</option>
+                          <option value="Moeilijk">Moeilijk</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
+                        <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <input
+                          type="number"
+                          value={tempServings || ''}
+                          onChange={(e) => setTempServings(e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
+                          placeholder="0"
+                        />
+                        <span>porties</span>
+                      </div>
+                    </>
+                  ) : (
+                <>
+                    {recipe.prep_time && (
+                      <Badge className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Bereidingstijd: {recipe.prep_time} min</span>
+                      </Badge>
                     )}
+                    {recipe.cook_time && (
+                      <Badge className="flex items-center gap-2">
+                        <ChefHat className="h-4 w-4" />
+                        <span>Kooktijd: {recipe.cook_time} min</span>
+                      </Badge>
+                    )}
+                    {recipe.difficulty && (
+                      <Badge variant="accent" className="flex items-center gap-2">
+                        <Signal className="h-4 w-4" />
+                        <span>{recipe.difficulty}</span>
+                      </Badge>
+                    )}
+                    <Badge className="flex items-center gap-3">
+                      <Users className="h-4 w-4" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => adjustServings(-1)}
+                          className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={servings === null}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span>{servings ?? '?'}</span>
+                        <button
+                          onClick={() => adjustServings(1)}
+                          className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                        <span>porties</span>
+                      </div>
+                    </Badge>
                   </>
                 )}
               </div>
             </div>
+            )}
 
-            {/* Metadata Badges */}
-            <div className="mb-8 flex flex-wrap gap-2 sm:gap-3">
-              {isEditMode ? (
-                <>
-                  <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
-                    <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Bereidingstijd:</span>
-                    <span className="sm:hidden">Bereid:</span>
-                    <input
-                      type="number"
-                      value={editPrepTime || ''}
-                      onChange={(e) => setEditPrepTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
-                      placeholder="0"
+            {/* Source Section - Separate from metadata */}
+            {!isEditMode && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Bron:</h3>
+                  {!isEditingSource && (
+                    <InlineEditButton
+                      isEditing={false}
+                      onEdit={startEditingSource}
+                      onSave={saveSource}
+                      onCancel={cancelSourceEdit}
+                      isSaving={isSavingSource}
                     />
-                    <span>min</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
-                    <ChefHat className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline">Kooktijd:</span>
-                    <span className="sm:hidden">Kook:</span>
-                    <input
-                      type="number"
-                      value={editCookTime || ''}
-                      onChange={(e) => setEditCookTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
-                      placeholder="0"
-                    />
-                    <span>min</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
-                    <Signal className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <select
-                      value={editDifficulty || ''}
-                      onChange={(e) => setEditDifficulty(e.target.value || null)}
-                      className="text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent pr-1"
-                    >
-                      <option value="">Moeilijkheid</option>
-                      <option value="Makkelijk">Makkelijk</option>
-                      <option value="Gemiddeld">Gemiddeld</option>
-                      <option value="Moeilijk">Moeilijk</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm">
-                    <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <input
-                      type="number"
-                      value={editServings || ''}
-                      onChange={(e) => setEditServings(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-12 sm:w-16 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent"
-                      placeholder="0"
-                    />
-                    <span>porties</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 border border-gray-300 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm min-w-0">
-                    <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={editSourceName}
-                      onChange={(e) => setEditSourceName(e.target.value)}
-                      className="w-20 sm:w-32 text-xs sm:text-sm border-b border-gray-300 focus:border-primary outline-none bg-transparent min-w-0"
-                      placeholder="Bron"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {recipe.prep_time && (
-                    <Badge className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      <span>Bereidingstijd: {recipe.prep_time} min</span>
-                    </Badge>
                   )}
-                  {recipe.cook_time && (
-                    <Badge className="flex items-center gap-2">
-                      <ChefHat className="h-4 w-4" />
-                      <span>Kooktijd: {recipe.cook_time} min</span>
-                    </Badge>
+                  {isEditingSource && (
+                    <InlineEditButton
+                      isEditing={true}
+                      onEdit={startEditingSource}
+                      onSave={saveSource}
+                      onCancel={cancelSourceEdit}
+                      isSaving={isSavingSource}
+                    />
                   )}
-                  {recipe.difficulty && (
-                    <Badge variant="accent" className="flex items-center gap-2">
-                      <Signal className="h-4 w-4" />
-                      <span>{recipe.difficulty}</span>
-                    </Badge>
-                  )}
-                  <Badge className="flex items-center gap-3">
-                    <Users className="h-4 w-4" />
+                </div>
+                {isEditingSource ? (
+                  <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => adjustServings(-1)}
-                        className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={servings === null}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span>{servings ?? '?'}</span>
-                      <button
-                        onClick={() => adjustServings(1)}
-                        className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                      <span>porties</span>
+                      <BookOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={tempSourceName}
+                        onChange={(e) => setTempSourceName(e.target.value)}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                        placeholder="Bron naam (bijv. Jeroen Meus, Laura Bakeries)"
+                      />
                     </div>
-                  </Badge>
-                  {recipe.source_name && (
-                    <Badge variant="primary" className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" />
-                      <span>{recipe.source_name}</span>
-                    </Badge>
-                  )}
-                </>
-              )}
-            </div>
+                    <div className="flex items-center gap-2">
+                      <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <input
+                        type="url"
+                        value={tempSourceUrl}
+                        onChange={(e) => setTempSourceUrl(e.target.value)}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                        placeholder="Bron URL (optioneel)"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 sm:gap-3">
+                    {recipe.source_name ? (
+                      recipe.source_url ? (
+                        <a
+                          href={recipe.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex"
+                        >
+                          <Badge variant="primary" className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+                            <BookOpen className="h-4 w-4" />
+                            <span>{recipe.source_name}</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </Badge>
+                        </a>
+                      ) : (
+                        <Badge variant="primary" className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4" />
+                          <span>{recipe.source_name}</span>
+                        </Badge>
+                      )
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Geen bron toegevoegd</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="my-6 h-px bg-border" />
 
@@ -993,6 +1124,11 @@ export default function RecipeDetailPage({
                     </>
                   )}
                 </div>
+
+                {/* Chef Tip - Notities */}
+                {!isEditMode && recipe.notes && (
+                  <ChefTip content={recipe.notes} />
+                )}
               </div>
             )}
 
@@ -1021,32 +1157,45 @@ export default function RecipeDetailPage({
                     {editInstructions && (
                       <div>
                         <h3 className="text-sm font-medium text-gray-700 mb-2">Preview:</h3>
-                        <div className="prose prose-lg max-w-none p-4 border border-gray-200 rounded-lg bg-gray-50">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeSanitize]}
-                          >
-                            {editInstructions}
-                          </ReactMarkdown>
+                        <div className="space-y-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                          {parseInstructions(editInstructions).map((step, index) => (
+                            <div key={index} className="flex gap-4">
+                              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <p className="leading-relaxed text-gray-700">{step}</p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
                   <>
-                    {recipe.content_markdown ? (
-                      <div className="prose prose-lg max-w-none">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          rehypePlugins={[rehypeSanitize]}
-                        >
-                          {recipe.content_markdown}
-                        </ReactMarkdown>
+                    {instructionSteps.length > 0 && instructionSteps[0] !== '' ? (
+                      <div className="space-y-6">
+                        {instructionSteps.map((step, index) => (
+                          <div key={index} className="flex gap-4">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1">
+                              <p className="leading-relaxed text-gray-700">{step}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <p className="text-muted-foreground">Geen bereidingswijze beschikbaar</p>
                     )}
                   </>
+                )}
+
+                {/* Chef Tip - Notities */}
+                {!isEditMode && recipe.notes && (
+                  <ChefTip content={recipe.notes} />
                 )}
               </div>
             )}
@@ -1122,6 +1271,9 @@ export default function RecipeDetailPage({
           onUpload={handleImageUpload}
           currentImageUrl={editImageUrl || recipe?.image_url}
           recipeSlug={slug}
+          recipeTitle={recipe?.title}
+          recipeDescription={recipe?.description || undefined}
+          recipeIngredients={ingredients.slice(0, 5).map(ing => ing.ingredient_name_nl)}
         />
       )}
 
@@ -1136,14 +1288,14 @@ export default function RecipeDetailPage({
         cancelText="Annuleren"
       />
 
-      {/* Alert/Message Modal */}
-      <Modal
-        isOpen={modalConfig.isOpen}
-        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        type={modalConfig.type}
-      />
+      {/* Simple print styles - main printing is done from cooking mode */}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }

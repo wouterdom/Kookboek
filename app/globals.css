@@ -255,4 +255,20 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  /* PDF Processing Banner Animation */
+  @keyframes slide-down {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out;
+  }
 }

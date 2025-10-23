@@ -6,8 +6,24 @@ Digital recipe book for managing and organizing family recipes.
 ## Tech Stack
 - **Frontend**: Next.js 15 + TypeScript + Tailwind CSS
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **AI**: Gemini AI for recipe extraction
+- **AI**: Gemini AI for recipe extraction and image generation
 - **Deployment**: Self-hosted on Coolify
+
+## AI Model Configuration
+
+**CRITICAL - Gemini Model Usage:**
+- **Image Generation**: ALWAYS use `models/gemini-2.5-flash-image` for generating recipe images
+- **All Other Tasks** (PDF processing, recipe extraction, etc.): ALWAYS use `models/gemini-flash-lite-latest`
+- NEVER use `gemini-1.5-flash-latest` or `gemini-flash-latest` - these are incorrect models
+
+**Examples:**
+```typescript
+// For IMAGE GENERATION
+const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash-image' })
+
+// For PDF PROCESSING, RECIPE EXTRACTION, etc.
+const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' })
+```
 
 ## Database Schema
 

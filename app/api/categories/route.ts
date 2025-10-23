@@ -1,13 +1,33 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { CATEGORY_LABEL_COLOR } from '@/lib/colors'
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
+  const { searchParams } = new URL(request.url)
+  const typeSlug = searchParams.get('type')
 
-  const { data: categories, error } = await supabase
+  let query = supabase
     .from('categories')
-    .select('*')
-    .order('name')
+    .select(`
+      *,
+      category_type:category_types(*)
+    `)
+
+  // Filter by category type if provided
+  if (typeSlug) {
+    const { data: categoryType } = await supabase
+      .from('category_types')
+      .select('id')
+      .eq('slug', typeSlug)
+      .single()
+
+    if (categoryType) {
+      query = query.eq('type_id', categoryType.id)
+    }
+  }
+
+  const { data: categories, error } = await query.order('order_index', { nullsFirst: false })
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -18,19 +38,32 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { name, color } = await request.json()
+  const { name, color, type_id, order_index } = await request.json()
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   }
 
+  if (!type_id) {
+    return NextResponse.json({ error: 'type_id is required' }, { status: 400 })
+  }
+
+  // Generate slug from name
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
   const { data: category, error } = await supabase
     .from('categories')
     .insert({
       name: name.trim(),
-      color: color || name.toLowerCase().replace(/\s+/g, '')
+      slug,
+      color: CATEGORY_LABEL_COLOR.value, // Always use fixed soft yellow
+      type_id,
+      order_index
     })
-    .select()
+    .select(`
+      *,
+      category_type:category_types(*)
+    `)
     .single()
 
   if (error) {
