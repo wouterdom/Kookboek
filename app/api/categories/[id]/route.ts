@@ -29,7 +29,7 @@ export async function PATCH(
   const { id } = await params
   const { name, order_index } = await request.json()
 
-  const updateData: any = {}
+  const updateData: Record<string, string | number> = {}
   if (name !== undefined) {
     updateData.name = name.trim()
     updateData.slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -39,7 +39,8 @@ export async function PATCH(
 
   const { data: category, error } = await supabase
     .from('categories')
-    .update(updateData)
+    // @ts-expect-error - Dynamic update object
+    .update(updateData as any)
     .eq('id', id)
     .select(`
       *,

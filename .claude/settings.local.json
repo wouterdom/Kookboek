@@ -42,7 +42,11 @@
       "Bash(taskkill //F //PID 3276)",
       "Read(//c/Users/wdom/Downloads/**)",
       "WebFetch(domain:www.flaticon.com)",
-      "Bash(timeout /t 5 /nobreak)"
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(dir /s /b \"C:\\Users\\wdom\\Kookboek\\app\\api\\*\\route.ts\")",
+      "Bash(npm run lint)"
     ],
     "deny": [],
     "ask": []

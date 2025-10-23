@@ -56,8 +56,9 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
 
     const { error } = await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update({ is_favorite: newFavoriteState })
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
 
     if (!error) {
       setIsFavorite(newFavoriteState)

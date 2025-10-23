@@ -63,7 +63,7 @@ export function RecipeCategorySelector({
 
       // Determine what to add and remove
       const toAdd = Array.from(selectedCategories).filter(id => !currentIds.has(id))
-      const toRemove = Array.from(currentIds).filter(id => !selectedCategories.has(id))
+      const toRemove = Array.from(currentIds).filter((id): id is string => !selectedCategories.has(id as string))
 
       // Add new categories
       for (const categoryId of toAdd) {

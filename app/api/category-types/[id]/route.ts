@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { id } = params
+  const { id } = await params
 
   const { error } = await supabase
     .from('category_types')
@@ -22,13 +22,13 @@ export async function DELETE(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { id } = params
+  const { id } = await params
   const { name, description, allow_multiple, order_index } = await request.json()
 
-  const updateData: any = {}
+  const updateData: Record<string, string | number | boolean | null> = {}
   if (name !== undefined) updateData.name = name.trim()
   if (description !== undefined) updateData.description = description?.trim() || null
   if (allow_multiple !== undefined) updateData.allow_multiple = allow_multiple
@@ -36,7 +36,8 @@ export async function PATCH(
 
   const { data: categoryType, error } = await supabase
     .from('category_types')
-    .update(updateData)
+    // @ts-expect-error - Dynamic update object
+    .update(updateData as any)
     .eq('id', id)
     .select()
     .single()

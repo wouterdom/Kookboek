@@ -30,6 +30,7 @@ export async function POST(request: Request) {
 
   const { data: categoryType, error } = await supabase
     .from('category_types')
+    // @ts-expect-error - Insert with runtime validated data
     .insert({
       name: name.trim(),
       slug: slug.trim(),

@@ -30,6 +30,8 @@ export interface Database {
           notes: string | null
           notes_updated_at: string | null
           search_vector: unknown | null
+          pdf_import_job_id: string | null
+          pdf_source_pages: string[] | null
           created_at: string
           updated_at: string
         }
@@ -53,6 +55,8 @@ export interface Database {
           notes?: string | null
           notes_updated_at?: string | null
           search_vector?: unknown | null
+          pdf_import_job_id?: string | null
+          pdf_source_pages?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -76,8 +80,51 @@ export interface Database {
           notes?: string | null
           notes_updated_at?: string | null
           search_vector?: unknown | null
+          pdf_import_job_id?: string | null
+          pdf_source_pages?: string[] | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      pdf_import_jobs: {
+        Row: {
+          id: string
+          filename: string
+          file_size: number
+          status: string
+          total_pages: number | null
+          current_page: number | null
+          recipes_found: number | null
+          recipes_imported: number | null
+          error_message: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          filename: string
+          file_size: number
+          status?: string
+          total_pages?: number | null
+          current_page?: number | null
+          recipes_found?: number | null
+          recipes_imported?: number | null
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          filename?: string
+          file_size?: number
+          status?: string
+          total_pages?: number | null
+          current_page?: number | null
+          recipes_found?: number | null
+          recipes_imported?: number | null
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
         }
       }
       parsed_ingredients: {
@@ -294,6 +341,10 @@ export type CategoryUpdate = Database['public']['Tables']['categories']['Update'
 export type RecipeCategory = Database['public']['Tables']['recipe_categories']['Row']
 export type RecipeCategoryInsert = Database['public']['Tables']['recipe_categories']['Insert']
 export type RecipeCategoryUpdate = Database['public']['Tables']['recipe_categories']['Update']
+
+export type PdfImportJob = Database['public']['Tables']['pdf_import_jobs']['Row']
+export type PdfImportJobInsert = Database['public']['Tables']['pdf_import_jobs']['Insert']
+export type PdfImportJobUpdate = Database['public']['Tables']['pdf_import_jobs']['Update']
 
 // Extended types met relaties
 export type CategoryWithType = Category & {

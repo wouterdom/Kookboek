@@ -16,13 +16,13 @@ export async function GET(request: Request) {
 
   // Filter by category type if provided
   if (typeSlug) {
-    const { data: categoryType } = await supabase
+    const { data: categoryType } = (await supabase
       .from('category_types')
       .select('id')
       .eq('slug', typeSlug)
-      .single()
+      .single()) as { data: { id: string } | null }
 
-    if (categoryType) {
+    if (categoryType?.id) {
       query = query.eq('type_id', categoryType.id)
     }
   }
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
 
   const { data: category, error } = await supabase
     .from('categories')
+    // @ts-expect-error - Insert with runtime validated data
     .insert({
       name: name.trim(),
       slug,

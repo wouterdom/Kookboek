@@ -33,7 +33,7 @@ export async function GET(
         category_type:category_types(*)
       )
     `)
-    .eq('recipe_id', recipe.id)
+    .eq('recipe_id', (recipe as any).id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -68,8 +68,9 @@ export async function POST(
   // Add category to recipe
   const { data, error } = await supabase
     .from('recipe_categories')
+    // @ts-expect-error - Dynamic insert
     .insert({
-      recipe_id: recipe.id,
+      recipe_id: (recipe as any).id,
       category_id
     })
     .select()

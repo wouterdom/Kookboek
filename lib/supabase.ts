@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database'
+import { Recipe } from '@/types/supabase'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:8000'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-key-for-dev'
@@ -18,16 +19,18 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
 // Helper function to get recipe with all details
 export async function getRecipeWithDetails(slug: string) {
-  const { data: recipe, error: recipeError } = await supabase
+  const { data: recipeData, error: recipeError } = await supabase
     .from('recipes')
     .select('*')
     .eq('slug', slug)
     .single()
 
-  if (recipeError || !recipe) {
+  if (recipeError || !recipeData) {
     console.error('Error fetching recipe:', recipeError)
     return null
   }
+
+  const recipe = recipeData as Recipe
 
   const { data: ingredients } = await supabase
     .from('parsed_ingredients')
@@ -40,8 +43,8 @@ export async function getRecipeWithDetails(slug: string) {
     .select('tag_id')
     .eq('recipe_id', recipe.id)
 
-  const tagIds = recipeTags?.map(rt => rt.tag_id) || []
-  let tags = []
+  const tagIds: string[] = recipeTags?.map((rt: any) => rt.tag_id) || []
+  let tags: any[] = []
 
   if (tagIds.length > 0) {
     const { data: tagsData } = await supabase

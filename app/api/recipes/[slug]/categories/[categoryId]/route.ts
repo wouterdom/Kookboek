@@ -23,7 +23,7 @@ export async function DELETE(
   const { error } = await supabase
     .from('recipe_categories')
     .delete()
-    .eq('recipe_id', recipe.id)
+    .eq('recipe_id', (recipe as any).id)
     .eq('category_id', categoryId)
 
   if (error) {

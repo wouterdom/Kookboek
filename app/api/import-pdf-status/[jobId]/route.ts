@@ -8,11 +8,12 @@ import { createClient } from '@/lib/supabase/server'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
+  const { jobId } = await params
+
   try {
     const supabase = await createClient()
-    const { jobId } = params
 
     const { data: job, error } = await supabase
       .from('pdf_import_jobs')
@@ -33,7 +34,7 @@ export async function GET(
     return NextResponse.json({ job })
 
   } catch (error) {
-    console.error(`Error fetching job ${params.jobId}:`, error)
+    console.error(`Error fetching job ${jobId}:`, error)
     return NextResponse.json(
       {
         error: 'Kon job status niet ophalen',

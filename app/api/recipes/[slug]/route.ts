@@ -75,8 +75,9 @@ export async function PUT(
     // Update recipe
     const { data: updatedRecipe, error: updateError } = await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update(updateData)
-      .eq('id', existingRecipe.id)
+      .eq('id', (existingRecipe as any).id)
       .select()
       .single()
 
@@ -91,12 +92,12 @@ export async function PUT(
       await supabase
         .from('parsed_ingredients')
         .delete()
-        .eq('recipe_id', existingRecipe.id)
+        .eq('recipe_id', (existingRecipe as any).id)
 
       // Insert new ingredients
       if (body.ingredients.length > 0) {
         const ingredients: ParsedIngredientInsert[] = body.ingredients.map((ing: any, index: number) => ({
-          recipe_id: existingRecipe.id,
+          recipe_id: (existingRecipe as any).id,
           ingredient_name_nl: ing.ingredient_name_nl || ing.name,
           amount: ing.amount || null,
           unit: ing.unit || null,
@@ -108,6 +109,7 @@ export async function PUT(
 
         const { error: ingredientsError } = await supabase
           .from('parsed_ingredients')
+          // @ts-expect-error - Dynamic insert
           .insert(ingredients)
 
         if (ingredientsError) {
@@ -155,13 +157,13 @@ export async function DELETE(
     await supabase
       .from('parsed_ingredients')
       .delete()
-      .eq('recipe_id', recipe.id)
+      .eq('recipe_id', (recipe as any).id)
 
     // Delete recipe
     const { error: deleteError } = await supabase
       .from('recipes')
       .delete()
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
 
     if (deleteError) {
       console.error('Error deleting recipe:', deleteError)

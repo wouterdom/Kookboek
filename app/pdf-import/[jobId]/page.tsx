@@ -59,12 +59,12 @@ export default async function PdfImportReviewPage({ params }: PageProps) {
                 Import Voltooid
               </h1>
               <p className="text-gray-600">
-                {job.recipes_imported} {job.recipes_imported === 1 ? 'recept' : 'recepten'} geïmporteerd uit{' '}
-                <span className="font-medium">{job.filename}</span>
+                {(job as any).recipes_imported} {(job as any).recipes_imported === 1 ? 'recept' : 'recepten'} geïmporteerd uit{' '}
+                <span className="font-medium">{(job as any).filename}</span>
               </p>
-              {job.completed_at && (
+              {(job as any).completed_at && (
                 <p className="text-sm text-gray-500 mt-1">
-                  {new Date(job.completed_at).toLocaleString('nl-NL', {
+                  {new Date((job as any).completed_at).toLocaleString('nl-NL', {
                     dateStyle: 'medium',
                     timeStyle: 'short'
                   })}
@@ -95,16 +95,16 @@ export default async function PdfImportReviewPage({ params }: PageProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {recipeList.map((recipe) => (
                 <Link
-                  key={recipe.id}
-                  href={`/recipes/${recipe.slug}`}
+                  key={(recipe as any).id}
+                  href={`/recipes/${(recipe as any).slug}`}
                   className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                 >
                   {/* Recipe Image */}
                   <div className="relative aspect-[4/3] bg-gray-100">
-                    {recipe.image_url ? (
+                    {(recipe as any).image_url ? (
                       <Image
-                        src={recipe.image_url}
-                        alt={recipe.title}
+                        src={(recipe as any).image_url}
+                        alt={(recipe as any).title}
                         fill
                         className="object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -130,23 +130,23 @@ export default async function PdfImportReviewPage({ params }: PageProps) {
                   {/* Recipe Info */}
                   <div className="p-4">
                     <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors">
-                      {recipe.title}
+                      {(recipe as any).title}
                     </h3>
-                    {recipe.description && (
+                    {(recipe as any).description && (
                       <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {recipe.description}
+                        {(recipe as any).description}
                       </p>
                     )}
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                      {recipe.servings_default && (
-                        <span>{recipe.servings_default} personen</span>
+                      {(recipe as any).servings_default && (
+                        <span>{(recipe as any).servings_default} personen</span>
                       )}
-                      {recipe.prep_time && (
-                        <span>{recipe.prep_time} min prep</span>
+                      {(recipe as any).prep_time && (
+                        <span>{(recipe as any).prep_time} min prep</span>
                       )}
-                      {recipe.pdf_source_pages && recipe.pdf_source_pages.length > 0 && (
+                      {(recipe as any).pdf_source_pages && (recipe as any).pdf_source_pages.length > 0 && (
                         <span>
-                          p. {recipe.pdf_source_pages.join(', ')}
+                          p. {(recipe as any).pdf_source_pages.join(', ')}
                         </span>
                       )}
                     </div>

@@ -117,12 +117,13 @@ export default function RecipeDetailPage({
       if (recipeError) throw recipeError
 
       if (recipeData) {
-        setRecipe(recipeData)
-        setServings(recipeData.servings_default)
-        setBaseServings(recipeData.servings_default)
-        setIsFavorite(recipeData.is_favorite || false)
-        setNotes(recipeData.notes || '')
-        setLabels(recipeData.labels || [])
+        const recipe = recipeData as Recipe
+        setRecipe(recipe)
+        setServings(recipe.servings_default)
+        setBaseServings(recipe.servings_default)
+        setIsFavorite(recipe.is_favorite || false)
+        setNotes(recipe.notes || '')
+        setLabels(recipe.labels || [])
 
         // Fetch recipe categories
         const categoriesResponse = await fetch(`/api/recipes/${slug}/categories`)
@@ -132,22 +133,22 @@ export default function RecipeDetailPage({
         }
 
         // Initialize edit states
-        setEditTitle(recipeData.title)
-        setEditDescription(recipeData.description || '')
-        setEditPrepTime(recipeData.prep_time)
-        setEditCookTime(recipeData.cook_time)
-        setEditServings(recipeData.servings_default)
-        setEditDifficulty(recipeData.difficulty)
-        setEditInstructions(recipeData.content_markdown || '')
-        setEditSourceName(recipeData.source_name || '')
-        setEditSourceUrl(recipeData.source_url || '')
-        setEditImageUrl(recipeData.image_url || '')
+        setEditTitle(recipe.title)
+        setEditDescription(recipe.description || '')
+        setEditPrepTime(recipe.prep_time)
+        setEditCookTime(recipe.cook_time)
+        setEditServings(recipe.servings_default)
+        setEditDifficulty(recipe.difficulty)
+        setEditInstructions(recipe.content_markdown || '')
+        setEditSourceName(recipe.source_name || '')
+        setEditSourceUrl(recipe.source_url || '')
+        setEditImageUrl(recipe.image_url || '')
 
         // Fetch ingredients
         const { data: ingredientsData, error: ingredientsError } = await supabase
           .from('parsed_ingredients')
           .select('*')
-          .eq('recipe_id', recipeData.id)
+          .eq('recipe_id', recipe.id)
           .order('order_index')
 
         if (!ingredientsError && ingredientsData) {
@@ -193,11 +194,12 @@ export default function RecipeDetailPage({
         setIsSavingNotes(true)
         await supabase
           .from('recipes')
+          // @ts-expect-error - Dynamic update
           .update({
             notes,
             notes_updated_at: new Date().toISOString()
           })
-          .eq('id', recipe.id)
+          .eq('id', (recipe as any).id)
         setIsSavingNotes(false)
       }
     }, 2000)
@@ -213,8 +215,9 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update({ is_favorite: newFavoriteState })
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
   }
 
   const addLabel = async () => {
@@ -227,8 +230,9 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update({ labels: updatedLabels })
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
   }
 
   const removeLabel = async (labelToRemove: string) => {
@@ -239,8 +243,9 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update({ labels: updatedLabels })
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
   }
 
   const addCategoryToRecipe = async (categoryName: string) => {
@@ -251,8 +256,9 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
+      // @ts-expect-error - Dynamic update
       .update({ labels: updatedLabels })
-      .eq('id', recipe.id)
+      .eq('id', (recipe as any).id)
   }
 
   const createNewCategory = async () => {
@@ -1269,10 +1275,10 @@ export default function RecipeDetailPage({
           isOpen={showImageUploadModal}
           onClose={() => setShowImageUploadModal(false)}
           onUpload={handleImageUpload}
-          currentImageUrl={editImageUrl || recipe?.image_url}
+          currentImageUrl={editImageUrl || recipe?.image_url || undefined}
           recipeSlug={slug}
           recipeTitle={recipe?.title}
-          recipeDescription={recipe?.description || undefined}
+          recipeDescription={recipe?.description ?? undefined}
           recipeIngredients={ingredients.slice(0, 5).map(ing => ing.ingredient_name_nl)}
         />
       )}

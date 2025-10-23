@@ -66,7 +66,7 @@ export default function HomePage() {
 
         if (selectedCategories.size > 0) {
           filteredData = filteredData.filter(recipe => {
-            const recipeCategoryIds = recipe.recipe_categories?.map((rc: any) => rc.category.id) || []
+            const recipeCategoryIds = (recipe as any).recipe_categories?.map((rc: any) => rc.category.id) || []
             // Check if recipe has ANY of the selected categories
             return Array.from(selectedCategories).some(catId => recipeCategoryIds.includes(catId))
           })

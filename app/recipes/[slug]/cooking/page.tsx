@@ -73,15 +73,16 @@ export default function CookingModePage({
       if (recipeError) throw recipeError
 
       if (recipeData) {
-        setRecipe(recipeData)
-        setServings(recipeData.servings_default)
-        setBaseServings(recipeData.servings_default)
+        const recipe = recipeData as Recipe
+        setRecipe(recipe)
+        setServings(recipe.servings_default)
+        setBaseServings(recipe.servings_default)
 
         // Fetch ingredients
         const { data: ingredientsData, error: ingredientsError } = await supabase
           .from('parsed_ingredients')
           .select('*')
-          .eq('recipe_id', recipeData.id)
+          .eq('recipe_id', recipe.id)
           .order('order_index')
 
         if (!ingredientsError && ingredientsData) {
