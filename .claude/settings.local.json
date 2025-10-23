@@ -39,7 +39,8 @@
       "Bash(npm run dev:*)",
       "Bash(taskkill /F /PID 33536)",
       "Bash(taskkill //F //PID 33536)",
-      "Bash(taskkill //F //PID 3276)"
+      "Bash(taskkill //F //PID 3276)",
+      "Read(//c/Users/wdom/Downloads/**)"
     ],
     "deny": [],
     "ask": []

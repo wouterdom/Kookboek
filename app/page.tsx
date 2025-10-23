@@ -18,6 +18,7 @@ export default function HomePage() {
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set())
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(new Set())
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set())
+  const [categories, setCategories] = useState<{ id: string; name: string; color: string }[]>([])
 
   const supabase = createClient()
 
@@ -69,6 +70,23 @@ export default function HomePage() {
     }
   }, [searchQuery, showFavorites, selectedLabels, selectedSources, supabase])
 
+  // Load categories
+  const loadCategories = useCallback(async () => {
+    try {
+      const response = await fetch('/api/categories')
+      if (response.ok) {
+        const data = await response.json()
+        setCategories(data)
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCategories()
+  }, [loadCategories])
+
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       loadRecipes()
@@ -97,6 +115,10 @@ export default function HomePage() {
     setRecipes(prev => prev.map(r =>
       r.id === id ? { ...r, is_favorite: isFavorite } : r
     ))
+  }
+
+  const handleDelete = (id: string) => {
+    setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
   return (
@@ -289,7 +311,9 @@ export default function HomePage() {
               <RecipeCard
                 key={recipe.id}
                 recipe={recipe}
+                categories={categories}
                 onFavoriteChange={handleFavoriteChange}
+                onDelete={handleDelete}
               />
             ))}
           </section>

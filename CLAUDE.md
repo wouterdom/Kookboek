@@ -74,3 +74,55 @@ See /wireframes for UI mockups
 
 ## Deployment
 Self-hosted via Coolify with auto-deploy from GitHub
+
+## UI/UX Guidelines
+
+### Modals and Alerts
+**IMPORTANT**: Never use browser native `alert()`, `confirm()`, or `prompt()` functions. Always use custom modal components for better UX.
+
+**Available Components:**
+- `<Modal>` from `@/components/modal` - Generic modal for alerts and messages
+  - Supports types: `info`, `success`, `error`, `warning`
+  - Use for displaying messages, errors, or information to users
+- `<ConfirmModal>` from `@/components/modal` - Confirmation dialog
+  - Use for destructive actions (delete, discard changes, etc.)
+  - Shows warning icon and requires explicit confirmation
+
+**Examples:**
+```tsx
+// For alerts/messages
+import { Modal } from "@/components/modal"
+
+const [modalConfig, setModalConfig] = useState({
+  isOpen: false,
+  message: '',
+  type: 'info'
+})
+
+// Show error
+setModalConfig({
+  isOpen: true,
+  message: 'Er ging iets mis bij het opslaan',
+  type: 'error'
+})
+
+// For confirmations
+import { ConfirmModal } from "@/components/modal"
+
+<ConfirmModal
+  isOpen={showDeleteModal}
+  onClose={() => setShowDeleteModal(false)}
+  onConfirm={handleDelete}
+  title="Verwijderen?"
+  message="Weet je zeker dat je dit wilt verwijderen?"
+  confirmText="Verwijderen"
+  cancelText="Annuleren"
+/>
+```
+
+**Benefits:**
+- Consistent styling across the app
+- Better accessibility
+- Mobile-friendly
+- Customizable appearance
+- Keyboard support (ESC to close)

@@ -111,6 +111,10 @@
     @apply bg-transparent border-[oklch(var(--border))] hover:bg-[oklch(var(--accent))] hover:text-[oklch(var(--accent-foreground))];
   }
 
+  .btn-error {
+    @apply bg-[oklch(var(--destructive))] text-[oklch(var(--destructive-foreground))] border-transparent hover:opacity-90;
+  }
+
   .btn-sm {
     @apply px-4 py-2 text-[0.813rem];
   }
@@ -239,5 +243,16 @@
   @page {
     size: A4;
     margin: 2cm;
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 }

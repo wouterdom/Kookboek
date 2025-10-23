@@ -2,20 +2,29 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, Clock, Users } from "lucide-react"
+import { Heart, Clock, Users, Trash2 } from "lucide-react"
 import { Recipe } from "@/types/supabase"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getCategoryStyle } from "@/lib/colors"
+import { ConfirmModal, Modal } from "./modal"
+import { useRouter } from "next/navigation"
 
 interface RecipeCardProps {
   recipe: Recipe
+  categories?: { id: string; name: string; color: string }[]
   onFavoriteChange?: (id: string, isFavorite: boolean) => void
+  onDelete?: (id: string) => void
 }
 
-export function RecipeCard({ recipe, onFavoriteChange }: RecipeCardProps) {
+export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete }: RecipeCardProps) {
   const [isFavorite, setIsFavorite] = useState(recipe.is_favorite || false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const supabase = createClient()
+  const router = useRouter()
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -37,6 +46,38 @@ export function RecipeCard({ recipe, onFavoriteChange }: RecipeCardProps) {
     }
 
     setIsUpdating(false)
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowDeleteModal(true)
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/recipes/${recipe.slug}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete recipe')
+      }
+
+      // Call parent callback if provided, otherwise just refresh
+      if (onDelete) {
+        onDelete(recipe.id)
+      } else {
+        router.refresh()
+      }
+    } catch (error) {
+      console.error('Error deleting recipe:', error)
+      setErrorMessage('Er ging iets mis bij het verwijderen. Probeer het opnieuw.')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
   }
 
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
@@ -69,16 +110,23 @@ export function RecipeCard({ recipe, onFavoriteChange }: RecipeCardProps) {
             />
           </button>
         </div>
-        <div className="p-4">
+        <div className="p-4 relative">
           <h3 className="mb-2 text-lg font-semibold line-clamp-2">{recipe.title}</h3>
 
           {recipe.labels && recipe.labels.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {recipe.labels.map((label) => (
-                <span key={label} className={`category-label ${label.toLowerCase().replace(/\s+/g, '')}`}>
-                  {label}
-                </span>
-              ))}
+              {recipe.labels.map((label) => {
+                const category = categories.find(c => c.name === label)
+                return (
+                  <span
+                    key={label}
+                    className="px-3 py-1 rounded-full text-xs font-medium"
+                    style={category ? getCategoryStyle(category.color) : { backgroundColor: '#6b7280', color: '#ffffff' }}
+                  >
+                    {label}
+                  </span>
+                )
+              })}
             </div>
           )}
 
@@ -102,8 +150,39 @@ export function RecipeCard({ recipe, onFavoriteChange }: RecipeCardProps) {
               </span>
             )}
           </div>
+
+          {/* Delete button */}
+          <button
+            onClick={handleDeleteClick}
+            disabled={isDeleting}
+            className="absolute bottom-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+            aria-label="Verwijder recept"
+          >
+            <Trash2 className="h-4 w-4 text-red-600" />
+          </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Recept verwijderen?"
+        message={`Weet je zeker dat je "${recipe.title}" wilt verwijderen? Deze actie kan niet ongedaan gemaakt worden.`}
+        confirmText={isDeleting ? "Verwijderen..." : "Verwijderen"}
+        cancelText="Annuleren"
+      />
+
+      {/* Error Modal */}
+      {errorMessage && (
+        <Modal
+          isOpen={!!errorMessage}
+          onClose={() => setErrorMessage(null)}
+          message={errorMessage}
+          type="error"
+        />
+      )}
     </Link>
   )
 }

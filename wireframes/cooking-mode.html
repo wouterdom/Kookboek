@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cooking Mode - Kookboek</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: oklch(0.6389 0.1202 175.2876);
+            --primary-foreground: oklch(1.0000 0 0);
+            --border: oklch(0.9274 0.0178 253.3431);
+            --muted-foreground: oklch(0.5498 0.0571 256.7089);
+            --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-serif: Montserrat, Georgia, serif;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: #fafafa;
+        }
+
+        .sticky-ingredients {
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: var(--primary-foreground);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .ingredient-item {
+            transition: background-color 0.2s;
+        }
+
+        .ingredient-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .ingredient-item input[type="checkbox"]:checked + span {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+
+        .serving-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 0.25rem;
+            background-color: white;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .serving-btn:hover {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: var(--primary-foreground);
+        }
+
+        .mode-toggle {
+            position: relative;
+            display: inline-flex;
+            padding: 0.25rem;
+            background: #e5e5e5;
+            border-radius: 0.5rem;
+        }
+
+        .mode-toggle button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .mode-toggle button.active {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            .sticky-ingredients {
+                position: relative;
+                max-height: none;
+            }
+
+            .grid-cols-1 {
+                display: block !important;
+            }
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .sticky-ingredients {
+                position: relative;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Compact Header -->
+    <header class="no-print sticky top-0 z-50 bg-white border-b" style="border-color: var(--border);">
+        <div class="container mx-auto px-4 py-3 max-w-7xl">
+            <div class="flex items-center justify-between gap-4">
+                <button class="inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50" onclick="window.history.back()">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Terug</span>
+                </button>
+
+                <!-- Mode Toggle -->
+                <div class="mode-toggle">
+                    <button onclick="switchToNormalMode()">
+                        <i data-lucide="layout-grid" class="w-4 h-4 inline mr-1"></i>
+                        <span class="hidden sm:inline">Normaal</span>
+                    </button>
+                    <button class="active">
+                        <i data-lucide="cooking-pot" class="w-4 h-4 inline mr-1"></i>
+                        <span class="hidden sm:inline">Koken</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button class="inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50" onclick="window.print()">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Print</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content - Side by Side Layout -->
+    <main class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- Compact Title Section -->
+        <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold mb-3" style="font-family: var(--font-serif);">
+                Venkelsoep met gegrilde merguez
+            </h1>
+
+            <!-- Metadata -->
+            <div class="flex flex-wrap gap-2 items-center text-sm" style="color: var(--muted-foreground);">
+                <div class="flex items-center gap-1">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    <span>60 min</span>
+                </div>
+                <span class="text-gray-300">•</span>
+                <div class="flex items-center gap-1">
+                    <i data-lucide="signal" class="w-4 h-4"></i>
+                    <span>Gemiddeld</span>
+                </div>
+                <span class="text-gray-300">•</span>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    <button onclick="adjustServings(-1)" class="serving-btn">
+                        <i data-lucide="minus" class="w-3 h-3"></i>
+                    </button>
+                    <span id="servings-display" class="font-semibold text-black">4</span>
+                    <button onclick="adjustServings(1)" class="serving-btn">
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                    </button>
+                    <span>porties</span>
+                </div>
+                <span class="text-gray-300 hidden sm:inline">•</span>
+                <div class="flex items-center gap-1 hidden sm:flex">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span>Jeroen Meus</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side by Side: Ingredients & Instructions -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <!-- LEFT: Ingredients (Sticky on desktop) -->
+            <div class="md:col-span-2">
+                <div class="sticky-ingredients bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2" style="font-family: var(--font-serif);">
+                        <i data-lucide="list-checks" class="w-5 h-5" style="color: var(--primary);"></i>
+                        Ingrediënten
+                    </h2>
+
+                    <div class="space-y-1">
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>2 el</strong> olijfolie
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>1</strong> grote ui, fijngesneden
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>3</strong> teentjes knoflook, fijngesneden
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>2 tl</strong> komijnpoeder
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>1 tl</strong> koriander gemalen
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>3</strong> venkelknollen, in dunne plakjes
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>2</strong> aardappelen, geschild en in blokjes
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>1,2 liter</strong> groentebouillon
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>200 ml</strong> slagroom
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>8</strong> merguezworstjes
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>naar smaak</strong> zout en peper
+                            </span>
+                        </label>
+
+                        <label class="ingredient-item flex items-start gap-3 p-2 rounded-lg cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 w-5 h-5 cursor-pointer rounded border-2" style="border-color: var(--border);" />
+                            <span class="flex-1 text-sm">
+                                <strong>extra</strong> olijfolie voor serveren
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Instructions (Scrollable) -->
+            <div class="md:col-span-3">
+                <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2" style="font-family: var(--font-serif);">
+                        <i data-lucide="chef-hat" class="w-5 h-5" style="color: var(--primary);"></i>
+                        Bereidingswijze
+                    </h2>
+
+                    <div class="space-y-6">
+                        <!-- Step 1 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">1</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Verhit de olijfolie in een grote pan op middelhoog vuur. Voeg de gesneden ui toe en bak deze 5 minuten tot de ui zacht en glazig is. Voeg de knoflook, komijn en koriander toe en bak nog 1 minuut mee tot het heerlijk gaat ruiken.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">2</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Voeg de venkelplakjes en aardappelblokjes toe aan de pan. Roer goed om en laat 5 minuten sudderen zodat de groenten de specerijen goed opnemen.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">3</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Giet de groentebouillon erbij en breng aan de kook. Zet het vuur laag en laat de soep 25-30 minuten zachtjes koken tot de venkel en aardappelen volledig zacht zijn.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 4 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">4</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Terwijl de soep kookt, verhit een grillpan of gewone koekenpan. Gril de merguezworstjes 10-12 minuten tot ze rondom goudbruin en gaar zijn. Draai ze regelmatig om voor een gelijkmatige bruining.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 5 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">5</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Pureer de soep met een staafmixer tot een gladde, romige consistentie. Roer de slagroom erdoor en breng op smaak met zout en peper.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Step 6 -->
+                        <div class="flex gap-4">
+                            <div class="step-number">6</div>
+                            <div class="flex-1">
+                                <p class="leading-relaxed text-gray-700">
+                                    Verdeel de soep over 4 diepe borden. Leg 2 gegrilde merguezworstjes per portie bovenop de soep. Garneer met fijngesneden venkelgroen en een druppel olijfolie. Serveer direct.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tip -->
+                    <div class="mt-8 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                        <div class="flex gap-3">
+                            <i data-lucide="lightbulb" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"></i>
+                            <div>
+                                <strong class="block mb-1 text-blue-900">Tip van de chef</strong>
+                                <p class="text-sm text-blue-800">
+                                    Voor een extra romige soep kun je een deel van de slagroom vervangen door crème fraîche. Serveer met vers stokbrood om de heerlijke soep mee op te deppen!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        let baseServings = 4;
+        let currentServings = 4;
+
+        function adjustServings(change) {
+            const newServings = currentServings + change;
+            if (newServings < 1) return;
+
+            currentServings = newServings;
+            document.getElementById('servings-display').textContent = currentServings;
+            lucide.createIcons();
+        }
+
+        function switchToNormalMode() {
+            alert('Switching to normal view mode...');
+        }
+    </script>
+</body>
+</html>
