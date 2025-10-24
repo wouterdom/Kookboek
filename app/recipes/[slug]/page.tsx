@@ -621,6 +621,31 @@ export default function RecipeDetailPage({
     return steps.length > 0 ? steps : [markdown]
   }
 
+  // Convert markdown formatting to React elements
+  const renderMarkdown = (text: string) => {
+    const parts = []
+    let lastIndex = 0
+    const regex = /\*\*(.+?)\*\*/g
+    let match
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index))
+      }
+      // Add bold text
+      parts.push(<strong key={match.index}>{match[1]}</strong>)
+      lastIndex = regex.lastIndex
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex))
+    }
+
+    return parts.length > 0 ? parts : text
+  }
+
   const instructionSteps = parseInstructions(recipe?.content_markdown || null)
 
   if (loading) {
@@ -1170,7 +1195,7 @@ export default function RecipeDetailPage({
                                 {index + 1}
                               </div>
                               <div className="flex-1">
-                                <p className="leading-relaxed text-gray-700">{step}</p>
+                                <p className="leading-relaxed text-gray-700">{renderMarkdown(step)}</p>
                               </div>
                             </div>
                           ))}
@@ -1188,7 +1213,7 @@ export default function RecipeDetailPage({
                               {index + 1}
                             </div>
                             <div className="flex-1">
-                              <p className="leading-relaxed text-gray-700">{step}</p>
+                              <p className="leading-relaxed text-gray-700">{renderMarkdown(step)}</p>
                             </div>
                           </div>
                         ))}
