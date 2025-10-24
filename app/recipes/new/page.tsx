@@ -18,6 +18,7 @@ export default function NewRecipePage() {
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [showPermissionModal, setShowPermissionModal] = useState(false)
   const [hasPermissionCheck, setHasPermissionCheck] = useState(false)
+  const [microphoneStatus, setMicrophoneStatus] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown')
   const [chatMessages, setChatMessages] = useState<Array<{ type: 'ai' | 'user', message: string, recipeData?: any }>>([
     {
       type: 'ai',
@@ -52,51 +53,82 @@ export default function NewRecipePage() {
     }
   }, [])
 
-  // Check microphone permissions on mount (optional, just for better UX)
-  useEffect(() => {
-    const checkMicrophonePermission = async () => {
-      try {
-        // Check if we're in a secure context (HTTPS or localhost)
-        if (!window.isSecureContext) {
-          console.warn('Not in secure context, microphone may not work. Use HTTPS.')
-          return
-        }
+  // Check and monitor microphone permissions
+  const checkMicrophonePermission = useCallback(async () => {
+    try {
+      // Check if we're in a secure context (HTTPS or localhost)
+      if (!window.isSecureContext) {
+        console.warn('Not in secure context, microphone may not work. Use HTTPS.')
+        setMicrophoneStatus('denied')
+        return
+      }
 
-        // Try to check permission status if available
-        if (navigator.permissions && navigator.permissions.query) {
-          try {
-            const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+      // Try to check permission status if available
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+          setMicrophoneStatus(permissionStatus.state as any)
 
-            if (permissionStatus.state === 'denied') {
-              toast.info('Microfoon toegang geblokkeerd', {
-                description: 'Je kunt nog steeds recepten handmatig invoeren of ga naar instellingen om microfoon toe te staan.'
+          // Listen for permission changes
+          permissionStatus.addEventListener('change', () => {
+            setMicrophoneStatus(permissionStatus.state as any)
+            if (permissionStatus.state === 'granted') {
+              setHasPermissionCheck(true)
+              toast.success('Microfoon toegang hersteld!', {
+                description: 'Je kunt nu weer spraakdictatie gebruiken.'
               })
-            } else if (permissionStatus.state === 'prompt') {
-              console.log('Microphone permission will be requested when needed')
-            } else if (permissionStatus.state === 'granted') {
-              console.log('Microphone permission already granted')
             }
-          } catch (e) {
-            // Some browsers don't support microphone in permissions.query
-            console.log('Cannot check microphone permission status:', e)
-          }
+          })
+        } catch (e) {
+          // Some browsers don't support microphone in permissions.query
+          console.log('Cannot check microphone permission status:', e)
+          // On mobile browsers, we can't always query permissions
+          // So we'll try to request and see what happens
+          setMicrophoneStatus('prompt')
         }
-      } catch (error) {
-        console.error('Error checking microphone permission:', error)
+      } else {
+        // For browsers that don't support permissions API
+        // We'll assume prompt state and let the user try
+        setMicrophoneStatus('prompt')
+      }
+    } catch (error) {
+      console.error('Error checking microphone permission:', error)
+      setMicrophoneStatus('prompt')
+    }
+  }, [])
+
+  useEffect(() => {
+    checkMicrophonePermission()
+
+    // Re-check when page becomes visible (user returns to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkMicrophonePermission()
       }
     }
 
-    checkMicrophonePermission()
-  }, [])
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [checkMicrophonePermission])
 
   const handleMicrophoneClick = useCallback(() => {
-    // Check if we've already requested permission in this session
-    if (!hasPermissionCheck) {
+    // Check current permission status and handle accordingly
+    if (microphoneStatus === 'denied') {
+      toast.error('Microfoon toegang geblokkeerd', {
+        description: 'Ga naar je browser instellingen om microfoon toegang te herstellen. Op mobiel: Menu → Site-instellingen → Microfoon.'
+      })
+      return
+    }
+
+    // For first time or unknown status, show permission modal
+    if (!hasPermissionCheck || microphoneStatus === 'unknown') {
       setShowPermissionModal(true)
     } else {
       startVoiceInput()
     }
-  }, [hasPermissionCheck]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasPermissionCheck, microphoneStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestMicrophonePermission = useCallback(async () => {
     setShowPermissionModal(false)
@@ -106,25 +138,54 @@ export default function NewRecipePage() {
 
   const startVoiceInput = useCallback(async () => {
     try {
-      // First check if we can access permissions API
-      if (navigator.permissions) {
-        try {
-          const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-          if (permissionStatus.state === 'denied') {
-            toast.error('Microfoon toegang geblokkeerd', {
-              description: 'Klik op het slotje (🔒) in de adresbalk en zet "Microfoon" op "Toestaan".'
-            })
-            return
-          }
-        } catch (e) {
-          // Permissions API might not support microphone query, continue anyway
-          console.log('Permissions API check failed, continuing...', e)
+      // Check if mediaDevices is available (required for getUserMedia)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        // Fallback for older browsers
+        const getUserMedia = (navigator as any).getUserMedia ||
+                            (navigator as any).webkitGetUserMedia ||
+                            (navigator as any).mozGetUserMedia ||
+                            (navigator as any).msGetUserMedia;
+
+        if (!getUserMedia) {
+          toast.error('Browser ondersteunt geen microfoon', {
+            description: 'Update je browser of gebruik Chrome/Firefox voor spraakdictatie.'
+          })
+          return
+        }
+
+        // Use legacy API with promise wrapper
+        const stream = await new Promise<MediaStream>((resolve, reject) => {
+          getUserMedia.call(navigator, { audio: true }, resolve, reject)
+        })
+
+        setHasPermissionCheck(true)
+        setMicrophoneStatus('granted')
+        processMediaStream(stream)
+        return
+      }
+
+      // Modern API with better error handling for mobile
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100
         }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
       setHasPermissionCheck(true) // Permission was granted
+      setMicrophoneStatus('granted')
+      processMediaStream(stream)
 
+    } catch (error: any) {
+      handleMicrophoneError(error)
+    }
+  }, [isRecording]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const processMediaStream = useCallback((stream: MediaStream) => {
+    try {
       // Set up audio analysis for sound detection
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
       audioContextRef.current = audioContext
@@ -146,8 +207,8 @@ export default function NewRecipePage() {
         analyser.getByteFrequencyData(dataArray)
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length
 
-        // If average level is above threshold, we detected sound (increased from 5 to 15)
-        if (average > 15) {
+        // If average level is above threshold, we detected sound (lowered threshold for mobile)
+        if (average > 10) {
           hasSoundRef.current = true
         }
 
@@ -155,7 +216,25 @@ export default function NewRecipePage() {
       }
       requestAnimationFrame(checkAudioLevel)
 
-      const mediaRecorder = new MediaRecorder(stream)
+      // Create MediaRecorder with fallback for different mime types
+      let mediaRecorder: MediaRecorder
+      const mimeTypes = ['audio/webm', 'audio/webm;codecs=opus', 'audio/ogg', 'audio/mp4']
+      let selectedMimeType = 'audio/webm'
+
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType
+          break
+        }
+      }
+
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
+      } catch {
+        // Fallback without mime type
+        mediaRecorder = new MediaRecorder(stream)
+      }
+
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
       setRecordingDuration(0)
@@ -170,7 +249,7 @@ export default function NewRecipePage() {
         // Stop monitoring
         isMonitoring = false
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
         const finalDuration = recordingDuration
 
         // Check minimum recording duration (2 seconds)
@@ -209,28 +288,41 @@ export default function NewRecipePage() {
         description: 'Dicteer je volledige recept. Klik opnieuw om te stoppen.'
       })
     } catch (error: any) {
-      console.error('Error starting recording:', error)
-
-      // More specific error handling
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        toast.error('Microfoon toegang geweigerd', {
-          description: 'Klik op het slotje in de adresbalk en geef toegang tot de microfoon.'
-        })
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        toast.error('Geen microfoon gevonden', {
-          description: 'Controleer of je microfoon aangesloten is.'
-        })
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        toast.error('Microfoon is in gebruik', {
-          description: 'Sluit andere programma\'s die de microfoon gebruiken.'
-        })
-      } else {
-        toast.error('Kan microfoon niet openen', {
-          description: 'Controleer je browserinstellingen en geef toegang tot de microfoon.'
-        })
-      }
+      handleMicrophoneError(error)
+      // Stop the stream if there was an error
+      stream.getTracks().forEach(track => track.stop())
     }
-  }, [isRecording])
+  }, [isRecording, recordingDuration]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMicrophoneError = useCallback((error: any) => {
+    console.error('Microphone error:', error)
+
+    // Update permission status
+    setMicrophoneStatus('denied')
+
+    // More specific error handling
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      toast.error('Microfoon toegang geweigerd', {
+        description: 'Op mobiel: Ga naar browser menu → Site-instellingen → Microfoon → Toestaan.'
+      })
+    } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      toast.error('Geen microfoon gevonden', {
+        description: 'Controleer of je microfoon aangesloten is of probeer andere browser app.'
+      })
+    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      toast.error('Microfoon is in gebruik', {
+        description: 'Sluit andere apps die de microfoon gebruiken en probeer opnieuw.'
+      })
+    } else if (error.name === 'SecurityError' || !window.isSecureContext) {
+      toast.error('Beveiligingsfout', {
+        description: 'Deze functie werkt alleen via HTTPS. Gebruik de productie URL.'
+      })
+    } else {
+      toast.error('Microfoon probleem', {
+        description: 'Probeer de pagina te verversen of gebruik een andere browser.'
+      })
+    }
+  }, [])
 
   const stopVoiceInput = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -488,14 +580,26 @@ export default function NewRecipePage() {
 
         <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 space-y-5">
           {/* Voice Recording Button - COMPACT */}
-          <div className="border border-primary/30 rounded-lg p-3 sm:p-4 bg-blue-50/30">
+          <div className={`border rounded-lg p-3 sm:p-4 ${
+            microphoneStatus === 'denied'
+              ? 'border-red-300 bg-red-50'
+              : 'border-primary/30 bg-blue-50/30'
+          }`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm sm:text-base mb-0.5 flex items-center gap-2">
                   🎤 Spraakdictate
+                  {microphoneStatus === 'denied' && (
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                      Geblokkeerd
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Dicteer je recept in één keer
+                  {microphoneStatus === 'denied'
+                    ? 'Microfoon toegang is geblokkeerd in browser instellingen'
+                    : 'Dicteer je recept in één keer'
+                  }
                 </p>
               </div>
               <button
@@ -507,9 +611,15 @@ export default function NewRecipePage() {
                     ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
                     : isProcessing
                     ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : microphoneStatus === 'denied'
+                    ? 'bg-gray-400 text-white hover:bg-gray-500'
                     : 'bg-primary text-white hover:bg-primary/90'
                 }`}
-                title={isRecording ? 'Stop opname' : 'Start opname'}
+                title={
+                  isRecording ? 'Stop opname' :
+                  microphoneStatus === 'denied' ? 'Microfoon geblokkeerd - klik voor instructies' :
+                  'Start opname'
+                }
               >
                 {isProcessing ? (
                   <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
@@ -540,6 +650,42 @@ export default function NewRecipePage() {
                     <div className="bg-primary h-1.5 rounded-full animate-pulse w-full"></div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Help section when microphone is denied */}
+            {microphoneStatus === 'denied' && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs">
+                <p className="font-semibold text-amber-900 mb-2">
+                  Hoe microfoon toegang te herstellen:
+                </p>
+                <div className="space-y-2 text-amber-800">
+                  <div>
+                    <span className="font-medium">Chrome Android:</span>
+                    <ol className="ml-4 mt-1">
+                      <li>1. Tik op het slotje (🔒) of info (ⓘ) icoon in de adresbalk</li>
+                      <li>2. Kies "Site-instellingen" of "Permissions"</li>
+                      <li>3. Zet "Microfoon" op "Toestaan"</li>
+                      <li>4. Ververs de pagina</li>
+                    </ol>
+                  </div>
+                  <div>
+                    <span className="font-medium">Samsung Internet:</span>
+                    <ol className="ml-4 mt-1">
+                      <li>1. Tik op het menu (⋮) → Instellingen</li>
+                      <li>2. Ga naar "Sites en downloads" → "Site-machtigingen"</li>
+                      <li>3. Vind deze website en zet "Microfoon" aan</li>
+                    </ol>
+                  </div>
+                  <div>
+                    <span className="font-medium">Firefox Android:</span>
+                    <ol className="ml-4 mt-1">
+                      <li>1. Tik op het slotje in de adresbalk</li>
+                      <li>2. Tik op "Bewerken" bij Site-machtigingen</li>
+                      <li>3. Zet "Microfoon" op "Toestaan"</li>
+                    </ol>
+                  </div>
+                </div>
               </div>
             )}
           </div>

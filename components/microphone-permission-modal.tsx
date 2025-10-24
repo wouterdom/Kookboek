@@ -53,17 +53,28 @@ export default function MicrophonePermissionModal({
             <ol className="text-sm text-blue-800 space-y-2">
               <li className="flex gap-2">
                 <span className="font-semibold">1.</span>
-                <span>Chrome vraagt om toestemming voor de microfoon</span>
+                <span>Je browser vraagt om toestemming voor de microfoon</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-semibold">2.</span>
-                <span>Klik op "Toestaan" in de browser popup</span>
+                <span>Klik op "Toestaan" of "Allow" in de browser popup</span>
               </li>
               <li className="flex gap-2">
                 <span className="font-semibold">3.</span>
                 <span>Begin met het dicteren van je recept</span>
               </li>
             </ol>
+          </div>
+
+          {/* Mobile specific note */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+              📱 Op je telefoon:
+            </h3>
+            <p className="text-sm text-green-800">
+              De browser popup verschijnt bovenaan je scherm. Klik op "Toestaan" om de microfoon te gebruiken.
+              Als je per ongeluk "Weigeren" kiest, moet je dit later aanpassen in de browser instellingen.
+            </p>
           </div>
 
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
