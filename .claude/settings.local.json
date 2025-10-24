@@ -46,7 +46,16 @@
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
       "Bash(dir /s /b \"C:\\Users\\wdom\\Kookboek\\app\\api\\*\\route.ts\")",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(dir /s /b \"C:\\Users\\wdom\\Downloads\\Server setup\")",
+      "WebFetch(domain:www.libelle-lekker.be)",
+      "Bash(node test-redirect.js:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_close"
     ],
     "deny": [],
     "ask": []

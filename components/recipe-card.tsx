@@ -24,31 +24,16 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [recipeCategoryIds, setRecipeCategoryIds] = useState<string[]>([])
+  const [displayCategories, setDisplayCategories] = useState(categories)
   const supabase = createClient()
   const router = useRouter()
 
-  // Load recipe categories
+  // Update display categories when categories prop changes
   useEffect(() => {
-    const loadRecipeCategories = async () => {
-      try {
-        const response = await fetch(`/api/recipes/${recipe.slug}/categories`)
-        if (response.ok) {
-          const data = await response.json()
-          setRecipeCategoryIds(data.map((rc: any) => rc.category_id))
-        }
-      } catch (error) {
-        console.error('Error loading recipe categories:', error)
-      }
-    }
+    setDisplayCategories(categories)
+  }, [categories])
 
-    loadRecipeCategories()
-  }, [recipe.slug])
-
-  const handleFavoriteClick = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
+  const handleFavoriteClick = async () => {
     if (isUpdating) return
 
     setIsUpdating(true)
@@ -68,9 +53,7 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
     setIsUpdating(false)
   }
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleDeleteClick = () => {
     setShowDeleteModal(true)
   }
 
@@ -102,35 +85,56 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
 
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
 
-  const handleCategoryUpdate = () => {
-    // Reload categories and refresh the card
-    const loadRecipeCategories = async () => {
-      try {
-        const response = await fetch(`/api/recipes/${recipe.slug}/categories`)
-        if (response.ok) {
-          const data = await response.json()
-          setRecipeCategoryIds(data.map((rc: any) => rc.category_id))
-        }
-      } catch (error) {
-        console.error('Error loading recipe categories:', error)
+  const handleCategoryUpdate = async () => {
+    // Reload full category details when updated via quick add
+    try {
+      const [recipeCategoriesResponse, allCategoriesResponse] = await Promise.all([
+        fetch(`/api/recipes/${recipe.slug}/categories`),
+        fetch('/api/categories/grouped')
+      ])
+
+      if (!recipeCategoriesResponse.ok || !allCategoriesResponse.ok) {
+        console.error('Error fetching categories')
+        return
       }
+
+      const recipeCategoriesData = await recipeCategoriesResponse.json()
+      const allCategoriesData = await allCategoriesResponse.json()
+
+      // Extract category IDs from recipe categories
+      const categoryIds = recipeCategoriesData.map((rc: any) => rc.category_id)
+
+      // Flatten all categories from grouped data
+      const allCategories = Object.values(allCategoriesData).flatMap(
+        (typeData: any) => typeData.categories
+      )
+
+      // Map category IDs to full category objects
+      const updatedCategories = categoryIds
+        .map((id: string) => allCategories.find((cat: any) => cat.id === id))
+        .filter((cat: any) => cat !== undefined)
+
+      setDisplayCategories(updatedCategories)
+    } catch (error) {
+      console.error('Error loading recipe categories:', error)
     }
-    loadRecipeCategories()
   }
 
   return (
-    <Link href={`/recipes/${recipe.slug}`}>
-      <div className="card group">
+    <div className="h-full">
+      <div className="card group h-full flex flex-col relative">
         <div className="relative">
-          <div className="relative h-[200px] w-full">
-            <Image
-              src={recipe.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop"}
-              alt={recipe.title}
-              fill
-              className="recipe-card-image object-cover"
-              unoptimized
-            />
-          </div>
+          <Link href={`/recipes/${recipe.slug}`} className="block">
+            <div className="relative h-[200px] w-full">
+              <Image
+                src={recipe.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop"}
+                alt={recipe.title}
+                fill
+                className="recipe-card-image object-cover"
+                unoptimized
+              />
+            </div>
+          </Link>
           <button
             onClick={handleFavoriteClick}
             disabled={isUpdating}
@@ -147,31 +151,40 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
           </button>
 
         </div>
-        <div className="p-4 relative">
+        <div className="p-4 relative flex-1 flex flex-col">
           {/* Category Quick Add Button - In card content area */}
           <RecipeCardCategoryQuickAdd
             recipeId={recipe.id}
             recipeSlug={recipe.slug}
-            selectedCategoryIds={recipeCategoryIds}
+            selectedCategoryIds={displayCategories.map(c => c.id)}
             onUpdate={handleCategoryUpdate}
           />
-          <h3 className="mb-2 text-lg font-semibold line-clamp-2">{recipe.title}</h3>
+          <Link href={`/recipes/${recipe.slug}`}>
+            <h3 className="mb-2 text-lg font-semibold line-clamp-2 hover:text-primary transition-colors">{recipe.title}</h3>
+          </Link>
 
-          {recipe.labels && recipe.labels.length > 0 && (
+          {displayCategories && displayCategories.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {recipe.labels.map((label) => (
+              {displayCategories.map((category) => (
                 <span
-                  key={label}
+                  key={category.id}
                   className="px-3 py-1 rounded-full text-xs font-medium border-2"
-                  style={getCategoryStyle()}
+                  style={{
+                    borderColor: category.color,
+                    color: category.color,
+                    backgroundColor: `${category.color}15`
+                  }}
                 >
-                  {label}
+                  {category.name}
                 </span>
               ))}
             </div>
           )}
 
-          <div className="flex items-center gap-3 text-sm text-[oklch(var(--muted-foreground))]">
+          {/* Spacer to push content to bottom */}
+          <div className="flex-1"></div>
+
+          <div className="flex items-center gap-3 text-sm text-[oklch(var(--muted-foreground))] mt-2">
             {totalTime > 0 && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
@@ -186,12 +199,13 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
             )}
           </div>
 
-          {/* Delete button */}
+          {/* Delete button - positioned to the left of the Tag icon */}
           <button
             onClick={handleDeleteClick}
             disabled={isDeleting}
-            className="absolute bottom-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+            className="absolute bottom-2 right-12 p-2 rounded-full bg-white shadow-md hover:bg-red-50 transition-all hover:scale-110 z-10"
             aria-label="Verwijder recept"
+            title="Verwijder recept"
           >
             <Trash2 className="h-4 w-4 text-red-600" />
           </button>
@@ -218,6 +232,6 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
           type="error"
         />
       )}
-    </Link>
+    </div>
   )
 }

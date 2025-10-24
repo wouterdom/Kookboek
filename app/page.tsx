@@ -13,7 +13,8 @@ import { createClient } from "@/lib/supabase/client"
 import { Recipe, CategoriesByType, CategoryType } from "@/types/supabase"
 
 export default function HomePage() {
-  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [allRecipes, setAllRecipes] = useState<Recipe[]>([]) // Store all fetched recipes
+  const [recipes, setRecipes] = useState<Recipe[]>([]) // Display recipes (paginated)
   const [searchQuery, setSearchQuery] = useState("")
   const [showFavorites, setShowFavorites] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -24,14 +25,22 @@ export default function HomePage() {
   const [isCategoryTypeModalOpen, setIsCategoryTypeModalOpen] = useState(false)
   const [labelManagementType, setLabelManagementType] = useState<CategoryType | null>(null)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const PAGE_SIZE = 24
+
   const supabase = createClient()
 
-  // Fetch recipes from Supabase with filtering
-  const loadRecipes = useCallback(async () => {
+  // Fetch all recipes from Supabase once
+  const loadAllRecipes = useCallback(async () => {
     try {
       setIsLoading(true)
 
-      let query = supabase
+      const { data, error } = await supabase
         .from('recipes')
         .select(`
           *,
@@ -48,31 +57,8 @@ export default function HomePage() {
         `)
         .order('created_at', { ascending: false })
 
-      // Apply search filter
-      if (searchQuery.trim()) {
-        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`)
-      }
-
-      // Apply favorite filter
-      if (showFavorites) {
-        query = query.eq('is_favorite', true)
-      }
-
-      const { data, error } = await query
-
       if (!error && data) {
-        // Filter by selected categories on client side
-        let filteredData = data
-
-        if (selectedCategories.size > 0) {
-          filteredData = filteredData.filter(recipe => {
-            const recipeCategoryIds = (recipe as any).recipe_categories?.map((rc: any) => rc.category.id) || []
-            // Check if recipe has ANY of the selected categories
-            return Array.from(selectedCategories).some(catId => recipeCategoryIds.includes(catId))
-          })
-        }
-
-        setRecipes(filteredData as any)
+        setAllRecipes(data as any)
       } else if (error) {
         console.error('Error loading recipes:', error)
       }
@@ -81,7 +67,77 @@ export default function HomePage() {
     } finally {
       setIsLoading(false)
     }
-  }, [searchQuery, showFavorites, selectedCategories, supabase])
+  }, [supabase])
+
+  // Apply filters and pagination to all recipes
+  const filteredRecipes = useMemo(() => {
+    let filtered = allRecipes
+
+    // Apply search filter: search in title, description, source_name, source_normalized, and category names
+    if (searchQuery.trim()) {
+      const searchLower = searchQuery.toLowerCase()
+      filtered = filtered.filter(recipe => {
+        // Search in title, description, source_name, source_normalized
+        const titleMatch = recipe.title?.toLowerCase().includes(searchLower)
+        const descMatch = recipe.description?.toLowerCase().includes(searchLower)
+        const sourceNameMatch = (recipe as any).source_name?.toLowerCase().includes(searchLower)
+        const sourceNormalizedMatch = (recipe as any).source_normalized?.toLowerCase().includes(searchLower)
+
+        // Search in category names
+        const categoryNames = (recipe as any).recipe_categories?.map((rc: any) => rc.category?.name?.toLowerCase()) || []
+        const categoryMatch = categoryNames.some((name: string) => name?.includes(searchLower))
+
+        return titleMatch || descMatch || sourceNameMatch || sourceNormalizedMatch || categoryMatch
+      })
+    }
+
+    // Apply favorite filter
+    if (showFavorites) {
+      filtered = filtered.filter(recipe => recipe.is_favorite)
+    }
+
+    // Filter by selected categories
+    if (selectedCategories.size > 0) {
+      filtered = filtered.filter(recipe => {
+        const recipeCategoryIds = (recipe as any).recipe_categories?.map((rc: any) => rc.category.id) || []
+        return Array.from(selectedCategories).some(catId => recipeCategoryIds.includes(catId))
+      })
+    }
+
+    return filtered
+  }, [allRecipes, searchQuery, showFavorites, selectedCategories])
+
+  // Apply pagination to filtered recipes
+  useEffect(() => {
+    setTotalCount(filteredRecipes.length)
+
+    // Reset to first page when filters change
+    setCurrentPage(0)
+
+    // Get first page of results
+    const firstPageResults = filteredRecipes.slice(0, PAGE_SIZE)
+    setRecipes(firstPageResults)
+
+    // Check if there's more data
+    setHasMore(filteredRecipes.length > PAGE_SIZE)
+  }, [filteredRecipes])
+
+  // Load more recipes for infinite scroll
+  const loadMore = useCallback(() => {
+    if (isLoadingMore || !hasMore || isLoading) return
+
+    setIsLoadingMore(true)
+    const nextPage = currentPage + 1
+    const startIdx = nextPage * PAGE_SIZE
+    const endIdx = startIdx + PAGE_SIZE
+
+    const nextPageResults = filteredRecipes.slice(startIdx, endIdx)
+
+    setRecipes(prev => [...prev, ...nextPageResults])
+    setCurrentPage(nextPage)
+    setHasMore(endIdx < filteredRecipes.length)
+    setIsLoadingMore(false)
+  }, [isLoadingMore, hasMore, isLoading, currentPage, filteredRecipes])
 
   // Load categories grouped by type
   const loadCategories = useCallback(async () => {
@@ -96,26 +152,37 @@ export default function HomePage() {
     }
   }, [])
 
+  // Load all recipes and categories on mount
   useEffect(() => {
+    loadAllRecipes()
     loadCategories()
-  }, [loadCategories])
+  }, [loadAllRecipes, loadCategories])
 
+  // Infinite scroll - detect when user reaches bottom
   useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      loadRecipes()
-    }, 300)
+    const handleScroll = () => {
+      // Check if we're near the bottom of the page (200px threshold)
+      const scrollTop = window.scrollY
+      const windowHeight = window.innerHeight
+      const documentHeight = document.documentElement.scrollHeight
 
-    return () => clearTimeout(debounceTimer)
-  }, [loadRecipes])
+      if (scrollTop + windowHeight >= documentHeight - 200) {
+        loadMore()
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [loadMore])
 
   const handleFavoriteChange = (id: string, isFavorite: boolean) => {
-    setRecipes(prev => prev.map(r =>
+    setAllRecipes(prev => prev.map(r =>
       r.id === id ? { ...r, is_favorite: isFavorite } : r
     ))
   }
 
   const handleDelete = (id: string) => {
-    setRecipes(prev => prev.filter(r => r.id !== id))
+    setAllRecipes(prev => prev.filter(r => r.id !== id))
   }
 
   const toggleCategory = (categoryId: string) => {
@@ -287,7 +354,13 @@ export default function HomePage() {
         {/* Recipe Count */}
         {!isLoading && (
           <div className="text-sm text-[oklch(var(--muted-foreground))]">
-            <span>{recipes.length}</span> recepten gevonden
+            {totalCount > 0 ? (
+              <>
+                Toon <span className="font-semibold">{recipes.length}</span> van <span className="font-semibold">{totalCount}</span> recepten
+              </>
+            ) : (
+              <span>Geen recepten gevonden</span>
+            )}
           </div>
         )}
 
@@ -313,17 +386,48 @@ export default function HomePage() {
             </p>
           </div>
         ) : (
-          <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {recipes.map((recipe) => (
-              <RecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                categories={[]} // We halen nu categorieën via recipe_categories
-                onFavoriteChange={handleFavoriteChange}
-                onDelete={handleDelete}
-              />
-            ))}
-          </section>
+          <>
+            <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr">
+              {recipes.map((recipe) => {
+                // Extract categories from recipe_categories
+                const recipeCategories = (recipe as any).recipe_categories?.map((rc: any) => ({
+                  id: rc.category.id,
+                  name: rc.category.name,
+                  color: rc.category.color,
+                  slug: rc.category.slug
+                })) || []
+
+                return (
+                  <RecipeCard
+                    key={recipe.id}
+                    recipe={recipe}
+                    categories={recipeCategories}
+                    onFavoriteChange={handleFavoriteChange}
+                    onDelete={handleDelete}
+                  />
+                )
+              })}
+            </section>
+
+            {/* Loading More Indicator */}
+            {isLoadingMore && (
+              <div className="flex justify-center py-8">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span>Meer recepten laden...</span>
+                </div>
+              </div>
+            )}
+
+            {/* End of Results */}
+            {!hasMore && recipes.length > 0 && (
+              <div className="flex justify-center py-8">
+                <p className="text-sm text-muted-foreground">
+                  Alle recepten geladen
+                </p>
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -332,7 +436,7 @@ export default function HomePage() {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         onSuccess={() => {
-          loadRecipes() // Reload recipes after successful import
+          loadAllRecipes() // Reload recipes after successful import
         }}
       />
 
@@ -342,7 +446,7 @@ export default function HomePage() {
         onClose={() => setIsCategoryTypeModalOpen(false)}
         onUpdate={() => {
           loadCategories()
-          loadRecipes()
+          loadAllRecipes()
         }}
       />
 
@@ -353,7 +457,7 @@ export default function HomePage() {
           onClose={() => setLabelManagementType(null)}
           onUpdate={() => {
             loadCategories()
-            loadRecipes()
+            loadAllRecipes()
           }}
           categoryType={labelManagementType}
         />

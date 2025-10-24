@@ -49,11 +49,31 @@ CRITICAL RULES - MUST FOLLOW:
    - Return as number
    - If not found, use 4 as default
 
-6. Categories (labels):
-   - Choose ONE that best fits: "Voorgerecht", "Hoofdgerecht", "Dessert", or "Bij gerecht"
-   - Return as single-item array
+6. Gang (REQUIRED - NO EXCEPTIONS):
+   - Choose EXACTLY ONE from these 6 options (case-sensitive):
+     ✓ "Amuse"
+     ✓ "Voorgerecht"
+     ✓ "Soep"
+     ✓ "Hoofdgerecht"
+     ✓ "Dessert"
+     ✓ "Bijgerecht"
 
-7. Image detection:
+   - ❌ NO OTHER VALUES - do NOT use "bijgerechten", "side dish", "starter", etc.
+   - If unclear, use "Hoofdgerecht" as default
+   - This field is MANDATORY for EVERY recipe
+
+7. Uitgever (REQUIRED - NO EXCEPTIONS):
+   - Extract the author, chef name, or publisher from:
+     * PDF header/footer
+     * Title page
+     * Recipe byline
+     * Copyright page
+   - Common examples: Jeroen Meus, Chloé Kookt, Laura's Bakery, Dagelijkse Kost, Ons Kookboek
+   - If not found in PDF: use PDF filename (without .pdf extension)
+   - ❌ NEVER return null or empty string
+   - This field is MANDATORY for EVERY recipe
+
+8. Image detection:
    - Note which page has the main food photo (not step photos)
    - Mark confidence: high (same page as recipe), medium (adjacent page), low (ambiguous)
 
@@ -87,7 +107,8 @@ Return ONLY valid JSON array. No markdown, no code blocks, just the JSON:
       }
     ] (REQUIRED - minimum 2),
     "instructions": "1. Verwarm de oven voor op 180°C.\\n2. Meng de bloem met het zout.\\n3. Bak 25-30 minuten." (REQUIRED - minimum 2 steps),
-    "labels": ["Hoofdgerecht"],
+    "gang": "Hoofdgerecht" (REQUIRED - one of: Amuse, Voorgerecht, Soep, Hoofdgerecht, Dessert, Bijgerecht),
+    "uitgever": "Author or publisher name" (REQUIRED - e.g., "Jeroen Meus", "Chloé Kookt", "Laura's Bakery"),
     "source": "Name from PDF title if visible",
     "source_pages": [10, 11],
     "primary_image_page": 10,
@@ -114,7 +135,8 @@ export interface ExtractedRecipe {
   difficulty?: 'easy' | 'medium' | 'hard'
   ingredients: ExtractedIngredient[]
   instructions: string
-  labels?: string[]
+  gang?: string // Required: Amuse, Voorgerecht, Soep, Hoofdgerecht, Dessert, or Bijgerecht
+  uitgever?: string // Required: Author/publisher name
   source?: string
   source_pages: number[]
   primary_image_page?: number

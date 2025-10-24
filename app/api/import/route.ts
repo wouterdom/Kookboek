@@ -3,17 +3,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@/lib/supabase/server'
 import { RecipeInsert, ParsedIngredientInsert } from '@/types/supabase'
 import * as cheerio from 'cheerio'
+import { linkRecipeToCategories } from '@/lib/category-manager'
+import { scrapeLibelleLekker, scrapeLibelleLekkerPublic, hasLibelleLekkerCredentials, scrapeWithBrowser } from '@/lib/libelle-lekker-scraper'
 
-// Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
 
-// Helper function to extract image from webpage
 async function extractImageFromWebpage(html: string, url: string): Promise<string | null> {
   try {
     const $ = cheerio.load(html)
     const baseUrl = new URL(url).origin
 
-    // Try different selectors for recipe images
     const selectors = [
       'meta[property="og:image"]',
       'meta[name="twitter:image"]',
@@ -30,7 +29,6 @@ async function extractImageFromWebpage(html: string, url: string): Promise<strin
       let imageUrl = element.attr('content') || element.attr('src')
 
       if (imageUrl) {
-        // Make absolute URL
         if (imageUrl.startsWith('//')) {
           imageUrl = 'https:' + imageUrl
         } else if (imageUrl.startsWith('/')) {
@@ -48,17 +46,14 @@ async function extractImageFromWebpage(html: string, url: string): Promise<strin
   return null
 }
 
-// Helper function to download and upload image to Supabase
 async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: any): Promise<string | null> {
   try {
-    // Download image
     const response = await fetch(imageUrl)
     if (!response.ok) return null
 
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Get file extension from URL or content-type
     const contentType = response.headers.get('content-type') || 'image/jpeg'
     const extension = contentType.split('/')[1]?.split(';')[0] || 'jpg'
     const timestamp = Date.now()
@@ -66,7 +61,6 @@ async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: 
     const filename = `${slug}-${timestamp}-${randomStr}.${extension}`
     const filepath = `${slug}/${filename}`
 
-    // Upload to Supabase storage
     const { data, error } = await supabase.storage
       .from('recipe-images')
       .upload(filepath, buffer, {
@@ -79,7 +73,6 @@ async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: 
       return null
     }
 
-    // Return public URL
     const { data: { publicUrl } } = supabase.storage
       .from('recipe-images')
       .getPublicUrl(filepath)
@@ -91,34 +84,20 @@ async function downloadAndUploadImage(imageUrl: string, slug: string, supabase: 
   }
 }
 
-/**
- * Generate AI food image using Gemini 2.5 Flash Image
- * Saves the image to Supabase Storage and returns the public URL
- *
- * @param recipeTitle - The title of the recipe (e.g., "Lemon Meringue Taart")
- * @param slug - The slug of the recipe (for storage path)
- * @param supabase - Supabase client
- * @returns URL of the generated and uploaded image
- */
 async function generateRecipeImage(
   recipeTitle: string,
   slug: string,
   supabase: any
 ): Promise<string | null> {
   try {
-    // Use Gemini 2.5 Flash Image model for image generation
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' })
-
-    // Craft a professional food photography prompt
     const prompt = `A professional, high-quality food photography shot of ${recipeTitle}. The dish is beautifully plated on a clean white or neutral background. Studio lighting with soft shadows. The food looks fresh, appetizing, and restaurant-quality. Focus on making the dish look delicious and inviting. Top-down or 45-degree angle. High resolution, sharp focus.`
 
     console.log(`Generating AI image for: ${recipeTitle}`)
 
-    // Generate the image
     const result = await model.generateContent(prompt)
     const response = result.response
 
-    // Extract image data from response
     let imageBase64: string | null = null
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -135,16 +114,12 @@ async function generateRecipeImage(
 
     console.log(`Generated image for "${recipeTitle}", uploading to Supabase...`)
 
-    // Convert base64 to buffer
     const imageBuffer = Buffer.from(imageBase64, 'base64')
-
-    // Generate unique filename
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 8)
     const filename = `${slug}-${timestamp}-${randomStr}.png`
     const filePath = `recipe-images/${filename}`
 
-    // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('recipe-images')
@@ -159,7 +134,6 @@ async function generateRecipeImage(
       return null
     }
 
-    // Get public URL
     const { data: { publicUrl } } = supabase
       .storage
       .from('recipe-images')
@@ -171,51 +145,83 @@ async function generateRecipeImage(
 
   } catch (error) {
     console.error('Error generating AI image:', error)
-    // Return null to allow recipe import without image
     return null
   }
 }
 
-// Recipe extraction prompt
 const RECIPE_PROMPT = `
 Extract recipe information from the content. Return ONLY valid JSON matching this structure.
-Be as flexible as possible - if any field is missing or unclear, just omit it or use null.
 
 {
-  "title": "Recipe title" (REQUIRED - extract from page),
-  "description": "Brief description" (optional),
-  "prep_time": number in minutes (optional),
-  "cook_time": number in minutes (optional),
-  "servings": number of servings (IMPORTANT: Only include if explicitly mentioned. Look for "voor X personen", "X porties", etc. If not found, use 4 as default),
-  "difficulty": "easy" | "medium" | "hard" (optional - translate from Dutch if needed),
+  "title": "Recipe title",
+  "description": "Brief description",
+  "prep_time": number in minutes,
+  "cook_time": number in minutes,
+  "servings": number,
+  "difficulty": "easy" | "medium" | "hard",
   "ingredients": [
     {
-      "amount": number or null (IMPORTANT: extract the exact amount, do not guess),
+      "amount": number or null,
       "unit": "el" | "tl" | "ml" | "l" | "g" | "kg" | etc or null,
       "name": "ingredient name in Dutch"
     }
   ],
-  "instructions": "Step-by-step instructions in markdown format. MUST be formatted as numbered list (1. First step\n2. Second step\n3. Third step\netc.) or bullet points (- Step one\n- Step two\netc.)",
-  "labels": ["Voorgerecht" | "Hoofdgerecht" | "Dessert" | "Bijgerecht"] (IMPORTANT: Select ONE category that best describes this dish. Choose from: Voorgerecht, Hoofdgerecht, Dessert, Bijgerecht. Return as single-item array.),
-  "source": "Source name if mentioned" (optional)
+  "instructions": "Step-by-step instructions",
+  "gang": "ONE OF THE SIX OPTIONS BELOW",
+  "uitgever": "Author or publisher name"
 }
 
-Important:
-- All text MUST be in Dutch
-- INSTRUCTIONS: MUST be formatted as a numbered list (1. 2. 3.) or bullet points (- ). Each step on a new line. This is critical for readability.
-- If instructions are not clear, extract whatever text you can find but still format as numbered steps
-- Extract as many ingredients as possible, even if amounts are unclear
-- SERVINGS: If serving information is found, use it. Otherwise, default to 4.
-- INGREDIENT AMOUNTS: Extract the exact amounts as written. Do not guess or make up amounts.
-- DIFFICULTY: Return in English (easy/medium/hard). Translate: Makkelijk=easy, Gemiddeld=medium, Moeilijk=hard
-- LABELS: Choose ONE category only (Voorgerecht, Hoofdgerecht, Dessert, or Bijgerecht) that best describes this dish type
-- The only REQUIRED field is "title" - everything else is optional
+CRITICAL - THESE FIELDS ARE ABSOLUTELY REQUIRED:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Example of good instruction formatting:
-1. Verwarm de oven voor op 180°C.
-2. Meng de bloem met het zout in een kom.
-3. Voeg de eieren en melk toe en roer tot een glad beslag.
-4. Bak 25-30 minuten tot goudbruin.
+1. "gang" - MUST be EXACTLY one of these 6 options (case-sensitive):
+   ✓ "Amuse"
+   ✓ "Voorgerecht"
+   ✓ "Soep"
+   ✓ "Hoofdgerecht"
+   ✓ "Dessert"
+   ✓ "Bijgerecht"
+
+   ❌ NO OTHER VALUES ALLOWED
+   ❌ Do NOT use: "bijgerechten", "side dish", "starter", etc.
+
+   How to decide:
+   - Amuse = kleine hapjes voor het eten
+   - Voorgerecht = starter, eerste gang
+   - Soep = any soup
+   - Hoofdgerecht = main course, het hoofdgerecht
+   - Dessert = dessert, nagerecht, zoet
+   - Bijgerecht = side dish, bijgerecht (bijv. friet, salade)
+
+   If unclear: use "Hoofdgerecht" as default
+
+2. "uitgever" - MUST extract the author/publisher:
+   - Look for author names: "door [naam]", "by [naam]", "recept van [naam]"
+   - Look for website names in headers/footers
+   - Look for brand names (Knorr, Solo, etc.)
+   - Common publishers: Jeroen Meus, Chloé Kookt, Laura's Bakery, Dagelijkse Kost, Leuke Recepten
+
+   If author not found: use website domain (e.g., "leukerecepten.nl")
+   ❌ NEVER return null or empty string
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Other important rules:
+- All text MUST be in Dutch
+- INSTRUCTIONS: Format as numbered list (1. Step\n2. Step\n3. Step)
+- SERVINGS: Extract if mentioned, otherwise use 4
+- DIFFICULTY: Return in English (easy/medium/hard)
+- INGREDIENT AMOUNTS: Extract exact amounts, use null if not specified
+
+Example output:
+{
+  "title": "Zoete aardappel friet",
+  "gang": "Bijgerecht",
+  "uitgever": "Leuke Recepten",
+  "servings": 4,
+  "ingredients": [...],
+  "instructions": "1. Verwarm oven\n2. Snijd friet\n3. Bak 30 min"
+}
 `
 
 export async function POST(request: NextRequest) {
@@ -278,18 +284,109 @@ export async function POST(request: NextRequest) {
         recipeData.extracted_image_url = null
 
       } else if (body.url) {
-        // Import from URL
         const { url } = body
 
         if (!url) {
           return NextResponse.json({ error: 'URL is required' }, { status: 400 })
         }
 
-        // Fetch the webpage content
-        const response = await fetch(url)
-        const html = await response.text()
+        const isLibelleLekker = url.includes('libelle-lekker.be')
+        const isOkay = url.includes('okay.be')
+        const needsBrowserScraper = isLibelleLekker || isOkay
 
-        // Extract image from webpage
+        let html = ''
+        let finalUrl = url
+
+        if (isLibelleLekker) {
+          console.log(`Detected Libelle Lekker URL, using headless browser scraper`)
+          const scrapedResult = await scrapeLibelleLekkerPublic(url)
+
+          if (!scrapedResult.success) {
+            console.error(`Libelle public scraper failed: ${scrapedResult.error}`)
+
+            if (hasLibelleLekkerCredentials()) {
+              console.log(`Trying authenticated scraper...`)
+              const authScrapedResult = await scrapeLibelleLekker(url)
+
+              if (authScrapedResult.success) {
+                html = authScrapedResult.html
+                finalUrl = authScrapedResult.finalUrl
+              } else {
+                return NextResponse.json({
+                  error: `🔒 Kon recept niet ophalen van Libelle Lekker\n\nFout: ${authScrapedResult.error}\n\n✅ Alternatief:\n1. Open de receptpagina in je browser\n2. Log in indien nodig\n3. Selecteer en kopieer de hele pagina (Ctrl+A, Ctrl+C)\n4. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen`,
+                  loginRequired: true
+                }, { status: 403 })
+              }
+            } else {
+              return NextResponse.json({
+                error: `🔒 Kon recept niet ophalen van Libelle Lekker\n\nFout: ${scrapedResult.error}\n\n💡 Tip: Configureer je Libelle Lekker login in de instellingen voor premium recepten!\n\n✅ Nu oplossen:\n1. Open de receptpagina in je browser\n2. Log in indien nodig\n3. Selecteer en kopieer de hele pagina (Ctrl+A, Ctrl+C)\n4. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen`,
+                loginRequired: true
+              }, { status: 403 })
+            }
+          } else {
+            html = scrapedResult.html
+            finalUrl = scrapedResult.finalUrl
+          }
+        } else if (isOkay) {
+          console.log(`Detected okay.be URL, using headless browser scraper`)
+          const scrapedResult = await scrapeWithBrowser(url, 'Okay.be')
+
+          if (!scrapedResult.success) {
+            console.error(`Okay.be scraper failed: ${scrapedResult.error}`)
+            return NextResponse.json({
+              error: `Kon recept niet ophalen van okay.be\n\nFout: ${scrapedResult.error}\n\n✅ Alternatief:\n1. Open de receptpagina in je browser\n2. Selecteer en kopieer de hele pagina (Ctrl+A, Ctrl+C)\n3. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen`,
+              loginRequired: false
+            }, { status: 500 })
+          }
+
+          html = scrapedResult.html
+          finalUrl = scrapedResult.finalUrl
+        } else {
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'nl-BE,nl;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'DNT': '1',
+              'Connection': 'keep-alive',
+              'Upgrade-Insecure-Requests': '1'
+            },
+            redirect: 'follow'
+          })
+
+          finalUrl = response.url
+          const originalDomain = new URL(url).hostname
+          const finalDomain = new URL(finalUrl).hostname
+
+          const isAuthRedirect =
+            originalDomain !== finalDomain ||
+            finalUrl.includes('/oauth/') ||
+            finalUrl.includes('/authorize') ||
+            finalUrl.includes('/login') ||
+            finalUrl.includes('token.roularta.be') ||
+            finalUrl.includes('sso.roularta.be') ||
+            finalUrl.includes('auth.')
+
+          if (isAuthRedirect) {
+            console.log(`Auth redirect detected: ${url} -> ${finalUrl}`)
+
+            if (isLibelleLekker) {
+              return NextResponse.json({
+                error: '🔒 Login vereist\n\nDeze website vereist inloggen om recepten te bekijken.\n\n💡 Tip: Configureer je Libelle Lekker login in de instellingen voor automatische import!\n\n✅ Nu oplossen:\n1. Open de receptpagina in je browser\n2. Log in op de website\n3. Selecteer en kopieer de hele pagina (Ctrl+A, Ctrl+C)\n4. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen',
+                loginRequired: true
+              }, { status: 403 })
+            }
+
+            return NextResponse.json({
+              error: '🔒 Login vereist\n\nDeze website vereist inloggen om recepten te bekijken.\n\n✅ Oplossing:\n1. Open de receptpagina in je browser\n2. Log in op de website\n3. Selecteer en kopieer de hele pagina (Ctrl+A, Ctrl+C)\n4. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen',
+              loginRequired: true
+            }, { status: 403 })
+          }
+
+          html = await response.text()
+        }
+
         const extractedImageUrl = await extractImageFromWebpage(html, url)
 
         // Use cheerio to extract metadata and text content
@@ -318,6 +415,8 @@ export async function POST(request: NextRequest) {
             sourceName = 'Libelle Lekker'
           } else if (domain.includes('njam')) {
             sourceName = 'njam!'
+          } else if (domain.includes('okay.be')) {
+            sourceName = 'Okay'
           } else {
             sourceName = domain.replace('www.', '')
           }
@@ -326,22 +425,36 @@ export async function POST(request: NextRequest) {
         $('script, style, noscript').remove() // Remove non-content elements
         const bodyText = $('body').text()
 
-        // Detect login walls - check for common login/register patterns
-        const loginPatterns = [
-          /\b(inloggen|login|log in)\b.*\b(registreer|register|sign up)\b/i,
-          /\bmeld je aan\b/i,
-          /\bje moet inloggen\b/i,
-          /sso\.roularta\.be\/login/i
-        ]
-
-        const hasLoginWall = loginPatterns.some(pattern =>
-          pattern.test(bodyText) || pattern.test(html)
-        )
-
         // Check if content is too short (likely a login page)
         const contentTooShort = bodyText.length < 500
 
-        if (hasLoginWall || contentTooShort) {
+        // Check for actual recipe content indicators
+        const hasRecipeContent =
+          bodyText.toLowerCase().includes('ingredi') ||
+          bodyText.toLowerCase().includes('bereidingswijze') ||
+          bodyText.toLowerCase().includes('bereiding') ||
+          bodyText.toLowerCase().includes('instructies')
+
+        // Detect login walls - only strong indicators, not generic nav links
+        const strongLoginPatterns = [
+          /\bje moet inloggen\b/i, // "you must log in"
+          /\binloggen om te bekijken\b/i, // "login to view"
+          /sso\.roularta\.be\/login/i, // Roularta SSO login
+          /token\.roularta\.be\/oauth/i, // Roularta OAuth
+          /\/oauth\/.*\/authorize/i, // Generic OAuth authorization
+          /\btoegang tot dit recept\b.*\binloggen\b/i, // "access to this recipe" + "login"
+          /access denied/i, // Generic access denied
+          /authentication required/i // Generic auth required
+        ]
+
+        const hasStrongLoginWall = strongLoginPatterns.some(pattern =>
+          pattern.test(bodyText) || pattern.test(html)
+        )
+
+        // Only block if:
+        // 1. Content is too short, OR
+        // 2. Strong login wall detected AND no recipe content found
+        if (contentTooShort || (hasStrongLoginWall && !hasRecipeContent)) {
           return NextResponse.json({
             error: '🔒 Login vereist\n\nDeze website vereist inloggen.\n\n✅ Oplossing:\n1. Log in op de website in je browser\n2. Kopieer de hele pagina (inclusief ingrediënten en instructies)\n3. Gebruik "Plak Receptinhoud" hieronder om het recept toe te voegen',
             loginRequired: true
@@ -449,7 +562,7 @@ export async function POST(request: NextRequest) {
       servings_default: recipeData.servings || 4, // Default to 4 if not found
       difficulty: recipeData.difficulty || null, // Should be in English now (easy/medium/hard)
       content_markdown: recipeData.instructions || 'Geen bereidingswijze beschikbaar.',
-      labels: recipeData.labels || null,
+      labels: null, // Deprecated - now using category system
       source_name: recipeData.source || null,
       source_url: recipeData.source_url || null,
       source_language: 'nl',
@@ -509,6 +622,17 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // Link recipe to categories (gang + uitgever)
+    const gang = recipeData.gang || null
+    const uitgever = recipeData.uitgever || recipeData.source || null
+
+    await linkRecipeToCategories(
+      supabase,
+      (insertedRecipe as any).id,
+      gang,
+      uitgever
+    )
 
     return NextResponse.json({
       success: true,

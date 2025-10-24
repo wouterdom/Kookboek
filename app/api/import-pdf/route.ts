@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { processPdf } from '@/lib/pdf-processor'
 import type { RecipeInsert, ParsedIngredientInsert } from '@/types/supabase'
+import { linkRecipeToCategories } from '@/lib/category-manager'
 
 const MAX_PDF_SIZE = 100 * 1024 * 1024 // 100MB
 
@@ -355,7 +356,7 @@ async function importRecipe(
     servings_default: extractedRecipe.servings || 4,
     difficulty: extractedRecipe.difficulty || null,
     content_markdown: extractedRecipe.instructions || 'Geen bereidingswijze beschikbaar.',
-    labels: extractedRecipe.labels || null,
+    labels: null, // Deprecated - now using category system
     source_name: extractedRecipe.source || sourceFilename,
     source_url: null,
     source_language: 'nl',
@@ -424,6 +425,17 @@ async function importRecipe(
       }
     }
   }
+
+  // Link recipe to categories (gang + uitgever)
+  const gang = extractedRecipe.gang || null
+  const uitgever = extractedRecipe.uitgever || extractedRecipe.source || sourceFilename.replace(/\.[^/.]+$/, '')
+
+  await linkRecipeToCategories(
+    supabase,
+    insertedRecipe.id,
+    gang,
+    uitgever
+  )
 
   console.log(`Imported recipe: ${extractedRecipe.title}`)
 }

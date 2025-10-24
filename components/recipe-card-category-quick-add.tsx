@@ -62,10 +62,7 @@ export function RecipeCardCategoryQuickAdd({
     setSelectedCategories(newSelected)
   }
 
-  const handleSave = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
+  const handleSave = async () => {
     setIsSaving(true)
     try {
       // Get current categories from database
@@ -103,15 +100,11 @@ export function RecipeCardCategoryQuickAdd({
     }
   }
 
-  const handleCancel = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleCancel = () => {
     setIsOpen(false)
   }
 
-  const handleOpen = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleOpen = () => {
     setIsOpen(true)
   }
 
@@ -129,13 +122,13 @@ export function RecipeCardCategoryQuickAdd({
       {/* Sheet (Bottom drawer on mobile, dialog on desktop) */}
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent side="bottom" className="p-0 sm:max-w-2xl sm:mx-auto">
-          <div className="flex flex-col max-h-[85vh]">
-            <SheetHeader className="p-4 border-b">
+          <div className="flex flex-col h-full max-h-[75vh]">
+            <SheetHeader className="p-4 border-b flex-shrink-0">
               <SheetTitle>Categorieën selecteren</SheetTitle>
             </SheetHeader>
 
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
               {Object.entries(categoriesByType).map(([typeSlug, typeData]) => (
                 <div key={typeSlug} className="space-y-2">
                   <h4 className="font-medium text-sm text-gray-900">
@@ -175,17 +168,17 @@ export function RecipeCardCategoryQuickAdd({
             </div>
 
             {/* Footer with actions */}
-            <SheetFooter className="p-4 border-t gap-2">
+            <SheetFooter className="p-4 border-t gap-2 flex-shrink-0 bg-white">
               <button
                 onClick={handleCancel}
-                className="btn btn-secondary flex-1"
+                className="btn btn-secondary flex-1 min-h-[44px]"
                 disabled={isSaving}
               >
                 Annuleren
               </button>
               <button
                 onClick={handleSave}
-                className="btn btn-primary flex-1"
+                className="btn btn-primary flex-1 min-h-[44px]"
                 disabled={isSaving}
               >
                 {isSaving ? 'Opslaan...' : 'Opslaan'}
