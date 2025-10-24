@@ -1,0 +1,661 @@
+'use client'
+
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Mic, Loader2, MessageSquare, StopCircle, Send, Sparkles, X } from 'lucide-react'
+import { toast } from 'sonner'
+
+export default function NewRecipePage() {
+  const router = useRouter()
+  const [isSaving, setIsSaving] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [chatInput, setChatInput] = useState('')
+  const [isChatLoading, setIsChatLoading] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<Array<{ type: 'ai' | 'user', message: string, recipeData?: any }>>([
+    {
+      type: 'ai',
+      message: 'Hallo! Heb je inspiratie nodig? Vraag me bijvoorbeeld: "Geef me een recept voor pasta pesto", "Wat kan ik maken met kip?", of "Eenvoudig dessert voor 6 personen"'
+    }
+  ])
+
+  // Form state
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [ingredients, setIngredients] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [prepTime, setPrepTime] = useState('')
+  const [cookTime, setCookTime] = useState('')
+  const [servings, setServings] = useState('')
+  const [difficulty, setDifficulty] = useState('')
+  const [gang, setGang] = useState('')
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current)
+      }
+    }
+  }, [])
+
+  const startVoiceInput = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+      setRecordingDuration(0)
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        await processVoiceInput(audioBlob)
+        stream.getTracks().forEach(track => track.stop())
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current)
+        }
+      }
+
+      mediaRecorder.start(1000)
+      setIsRecording(true)
+
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1)
+      }, 1000)
+
+      toast.success('🎤 Opname gestart', {
+        description: 'Dicteer je volledige recept. Klik opnieuw om te stoppen.'
+      })
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      toast.error('Kan microfoon niet openen', {
+        description: 'Geef toestemming om microfoon te gebruiken.'
+      })
+    }
+  }, [])
+
+  const stopVoiceInput = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+      toast.info('⏸️ Opname gestopt', {
+        description: 'AI verwerkt je recept...'
+      })
+    }
+  }, [isRecording])
+
+  const processVoiceInput = async (audioBlob: Blob) => {
+    try {
+      setIsProcessing(true)
+
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+
+      const response = await fetch('/api/recipes/voice', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Audio processing failed')
+      }
+
+      const data = await response.json()
+      const recipe = data.recipe
+
+      // Update all fields from the parsed recipe
+      if (recipe.title) setTitle(recipe.title)
+      if (recipe.description) setDescription(recipe.description)
+      if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+        setIngredients(recipe.ingredients.join('\n'))
+      }
+      if (recipe.instructions) setInstructions(recipe.instructions)
+      if (recipe.prep_time) setPrepTime(recipe.prep_time.toString())
+      if (recipe.cook_time) setCookTime(recipe.cook_time.toString())
+      if (recipe.servings) setServings(recipe.servings.toString())
+      if (recipe.difficulty) setDifficulty(recipe.difficulty)
+      if (recipe.gang) setGang(recipe.gang)
+
+      toast.success('✓ Recept automatisch ingevuld!', {
+        description: 'Controleer de velden en pas aan waar nodig.'
+      })
+    } catch (error) {
+      console.error('Error processing voice:', error)
+      toast.error('Verwerking mislukt', {
+        description: error instanceof Error ? error.message : 'Er ging iets mis bij het verwerken.'
+      })
+    } finally {
+      setIsProcessing(false)
+      setRecordingDuration(0)
+    }
+  }
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const saveRecipe = async () => {
+    if (!title.trim()) {
+      toast.error('Titel is verplicht')
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      // Parse ingredients from textarea (one per line)
+      const ingredientsList = ingredients
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+
+      const recipeData = {
+        title,
+        description: description || undefined,
+        ingredients: ingredientsList,
+        instructions,
+        prep_time: prepTime ? parseInt(prepTime) : undefined,
+        cook_time: cookTime ? parseInt(cookTime) : undefined,
+        servings: servings ? parseInt(servings) : undefined,
+        difficulty: difficulty || undefined,
+        gang: gang || undefined
+      }
+
+      // Save recipe
+      const response = await fetch('/api/recipes/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recipeData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to save recipe')
+      }
+
+      const { slug, recipeId } = await response.json()
+
+      toast.success('✓ Recept opgeslagen! Foto wordt gegenereerd...')
+
+      // Generate image (async, don't wait)
+      fetch('/api/recipes/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipeId,
+          title,
+          description
+        })
+      }).catch(err => console.error('Image generation failed:', err))
+
+      // Redirect to recipe
+      router.push(`/recipes/${slug}`)
+    } catch (error) {
+      console.error('Error saving recipe:', error)
+      toast.error(error instanceof Error ? error.message : 'Er ging iets mis bij het opslaan.')
+      setIsSaving(false)
+    }
+  }
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return
+
+    const userMessage = chatInput.trim()
+    setChatMessages(prev => [...prev, { type: 'user', message: userMessage }])
+    setChatInput('')
+    setIsChatLoading(true)
+
+    try {
+      const response = await fetch('/api/inspiration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          history: chatMessages
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Chat failed')
+      }
+
+      const data = await response.json()
+
+      // Try to extract recipe-like data from response
+      const aiMessage = data.reply
+      const hasRecipeData = aiMessage.toLowerCase().includes('ingrediënt') ||
+                            aiMessage.toLowerCase().includes('recept') ||
+                            aiMessage.toLowerCase().includes('bereiding')
+
+      setChatMessages(prev => [...prev, {
+        type: 'ai',
+        message: aiMessage,
+        recipeData: hasRecipeData ? { canFillForm: true } : undefined
+      }])
+    } catch (error) {
+      console.error('Chat error:', error)
+      setChatMessages(prev => [...prev, {
+        type: 'ai',
+        message: 'Sorry, er ging iets mis. Probeer het opnieuw.'
+      }])
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  const fillFormFromAI = async (messageText: string) => {
+    toast.info('AI receptsuggestie wordt verwerkt...')
+
+    try {
+      const response = await fetch('/api/inspiration/parse-recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Parsing failed')
+      }
+
+      const data = await response.json()
+      const recipe = data.recipe
+
+      // Fill all form fields
+      if (recipe.title) setTitle(recipe.title)
+      if (recipe.description) setDescription(recipe.description)
+      if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+        setIngredients(recipe.ingredients.join('\n'))
+      }
+      if (recipe.instructions) setInstructions(recipe.instructions)
+      if (recipe.prep_time) setPrepTime(recipe.prep_time.toString())
+      if (recipe.cook_time) setCookTime(recipe.cook_time.toString())
+      if (recipe.servings) setServings(recipe.servings.toString())
+      if (recipe.difficulty) setDifficulty(recipe.difficulty)
+      if (recipe.gang) setGang(recipe.gang)
+
+      toast.success('✓ Recept automatisch ingevuld!', {
+        description: 'Controleer de velden en pas aan waar nodig.'
+      })
+      setIsChatOpen(false)
+    } catch (error) {
+      console.error('Error filling form from AI:', error)
+      toast.error('Kon recept niet invullen', {
+        description: error instanceof Error ? error.message : 'Probeer opnieuw'
+      })
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Compact */}
+      <header className="bg-white border-b sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="font-medium text-sm">Terug</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto px-4 py-6">
+        <div className="mb-4">
+          <h1 className="font-[Montserrat] text-2xl sm:text-3xl font-bold mb-1">
+            Nieuw Recept Toevoegen
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Vul de velden handmatig in, of gebruik het microfoon icoontje om je hele recept te dicteren
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 space-y-5">
+          {/* Voice Recording Button - COMPACT */}
+          <div className="border border-primary/30 rounded-lg p-3 sm:p-4 bg-blue-50/30">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm sm:text-base mb-0.5 flex items-center gap-2">
+                  🎤 Spraakdictate
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Dicteer je recept in één keer
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={isRecording ? stopVoiceInput : startVoiceInput}
+                disabled={isProcessing}
+                className={`p-3 sm:p-4 rounded-full transition-all shadow-lg flex-shrink-0 ${
+                  isRecording
+                    ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
+                    : isProcessing
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+                title={isRecording ? 'Stop opname' : 'Start opname'}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
+                ) : isRecording ? (
+                  <StopCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+                ) : (
+                  <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
+                )}
+              </button>
+            </div>
+
+            {/* Recording Status - Compact */}
+            {(isRecording || isProcessing) && (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="font-medium">
+                    {isRecording && '🔴 Opname bezig...'}
+                    {isProcessing && '⚙️ Verwerken...'}
+                  </span>
+                  {isRecording && (
+                    <span className="font-mono text-primary font-bold">
+                      {formatDuration(recordingDuration)}
+                    </span>
+                  )}
+                </div>
+                {isProcessing && (
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-primary h-1.5 rounded-full animate-pulse w-full"></div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              📝 Titel *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Bijv. Oma's Appeltaart"
+              className="input w-full"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              📄 Beschrijving
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Een heerlijke klassieke appeltaart met kaneel..."
+              className="input w-full resize-none"
+              rows={3}
+            />
+          </div>
+
+          {/* Ingredients */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              📋 Ingrediënten
+            </label>
+            <textarea
+              value={ingredients}
+              onChange={(e) => setIngredients(e.target.value)}
+              placeholder={'250g bloem\n200g boter\n3 eieren\n150g suiker\n...\n(één per regel)'}
+              className="input w-full resize-none"
+              rows={8}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              💡 Tip: Eén ingrediënt per regel
+            </p>
+          </div>
+
+          {/* Instructions */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              👨‍🍳 Bereidingswijze
+            </label>
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder={'1. Verwarm de oven voor op 180°C\n2. Meng de bloem en boter tot kruimelig\n3. Voeg eieren en suiker toe\n...'}
+              className="input w-full resize-none"
+              rows={10}
+            />
+          </div>
+
+          {/* Details Grid */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold mb-2">
+                  ⏱️ Voorbereiding (min)
+                </label>
+                <input
+                  type="number"
+                  value={prepTime}
+                  onChange={(e) => setPrepTime(e.target.value)}
+                  placeholder="20"
+                  className="input w-full"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-2">
+                  🍳 Koken (min)
+                </label>
+                <input
+                  type="number"
+                  value={cookTime}
+                  onChange={(e) => setCookTime(e.target.value)}
+                  placeholder="45"
+                  className="input w-full"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-2">
+                  🍽️ Porties
+                </label>
+                <input
+                  type="number"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  placeholder="4"
+                  className="input w-full"
+                  min="1"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-2">
+                  📊 Moeilijkheid
+                </label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">Selecteer...</option>
+                  <option value="easy">Makkelijk</option>
+                  <option value="medium">Gemiddeld</option>
+                  <option value="hard">Moeilijk</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-2">
+                🍴 Gang (categorie)
+              </label>
+              <select
+                value={gang}
+                onChange={(e) => setGang(e.target.value)}
+                className="input w-full sm:w-1/2"
+              >
+                <option value="">Selecteer...</option>
+                <option value="Amuse">Amuse</option>
+                <option value="Voorgerecht">Voorgerecht</option>
+                <option value="Soep">Soep</option>
+                <option value="Hoofdgerecht">Hoofdgerecht</option>
+                <option value="Dessert">Dessert</option>
+                <option value="Bijgerecht">Bijgerecht</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 AI detecteert dit automatisch, maar je kan het ook handmatig instellen
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4 border-t">
+            <button
+              onClick={saveRecipe}
+              disabled={isSaving || !title.trim() || isRecording || isProcessing}
+              className="btn btn-primary btn-md flex-1"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Opslaan...
+                </>
+              ) : (
+                <>
+                  ✓ Opslaan & Foto Genereren
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => router.back()}
+              disabled={isSaving || isRecording || isProcessing}
+              className="btn btn-outline btn-md"
+            >
+              Annuleren
+            </button>
+          </div>
+        </div>
+      </main>
+
+      {/* Floating AI Chat Button - Positioned higher to avoid form buttons */}
+      <div className="fixed bottom-24 right-6 z-50">
+        {!isChatOpen ? (
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="bg-primary text-white rounded-full p-4 shadow-2xl hover:bg-primary/90 transition-all hover:scale-110"
+            title="AI Inspiratie Chat"
+          >
+            <Sparkles className="h-6 w-6" />
+          </button>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] sm:w-96 max-h-[600px] flex flex-col border border-primary/20">
+            {/* Chat Header */}
+            <div className="flex items-center justify-between p-4 border-b bg-primary/5 rounded-t-2xl">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold text-primary">Inspiratie Chat</h3>
+              </div>
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[300px] max-h-[400px]">
+              {chatMessages.map((msg, idx) => (
+                <div key={idx}>
+                  <div
+                    className={`p-3 rounded-lg text-sm ${
+                      msg.type === 'ai'
+                        ? 'bg-blue-50 text-blue-900'
+                        : 'bg-orange-50 text-orange-900 ml-4'
+                    }`}
+                  >
+                    <div className="font-semibold text-xs mb-1 opacity-70">
+                      {msg.type === 'ai' ? '🤖 AI' : '👤 Jij'}
+                    </div>
+                    {msg.message}
+                  </div>
+
+                  {/* "Neem over" button after AI response with recipe data */}
+                  {msg.type === 'ai' && msg.recipeData?.canFillForm && (
+                    <button
+                      onClick={() => fillFormFromAI(msg.message)}
+                      className="mt-2 text-sm btn btn-primary btn-sm w-full flex items-center justify-center gap-2"
+                    >
+                      <span>↓</span> Neem over
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isChatLoading && (
+                <div className="p-3 rounded-lg text-sm bg-blue-50 text-blue-900">
+                  <div className="font-semibold text-xs mb-1 opacity-70">
+                    🤖 AI
+                  </div>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-4 border-t bg-gray-50 rounded-b-2xl">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Vraag om inspiratie..."
+                  className="input input-sm flex-1 text-sm"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !isChatLoading) {
+                      sendChatMessage()
+                    }
+                  }}
+                  disabled={isChatLoading}
+                />
+                <button
+                  onClick={sendChatMessage}
+                  className="btn btn-primary btn-sm"
+                  disabled={!chatInput.trim() || isChatLoading}
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Vraag bijv. "pasta pesto recept"
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

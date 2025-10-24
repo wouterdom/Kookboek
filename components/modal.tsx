@@ -82,14 +82,14 @@ export function Modal({
           {showCancel && (
             <button
               onClick={onClose}
-              className="btn btn-outline"
+              className="btn btn-outline btn-md"
             >
               {cancelText}
             </button>
           )}
           <button
             onClick={handleConfirm}
-            className={`btn ${type === 'error' || type === 'warning' ? 'btn-error' : 'btn-primary'}`}
+            className={`btn btn-md ${type === 'error' || type === 'warning' ? 'btn-error' : 'btn-primary'}`}
             autoFocus
           >
             {confirmText}

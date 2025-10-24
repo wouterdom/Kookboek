@@ -647,7 +647,7 @@ export default function RecipeDetailPage({
           {/* Left: Back button */}
           <div className="flex flex-1 items-center">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push('/')}
               className="btn btn-outline btn-sm flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />

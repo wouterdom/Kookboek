@@ -16,7 +16,6 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
   const [photos, setPhotos] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [pastedContent, setPastedContent] = useState("")
-  const [pastedSourceUrl, setPastedSourceUrl] = useState("")
   const [isDragging, setIsDragging] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -100,8 +99,7 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            pastedContent,
-            sourceUrl: pastedSourceUrl || undefined
+            pastedContent
           })
         })
       } else if (photos.length > 0) {
@@ -139,15 +137,16 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
     } finally {
       setIsImporting(false)
     }
-  }, [url, photos, pastedContent, pastedSourceUrl, onSuccess, onClose])
+  }, [url, photos, pastedContent, onSuccess, onClose])
 
   if (!isOpen) return null
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-4 sm:p-6 md:p-8 shadow-lg">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="w-full max-w-lg max-h-[90vh] rounded-lg bg-white shadow-lg flex flex-col">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-[oklch(var(--border))]">
           <h2 className="font-[Montserrat] text-lg sm:text-xl font-bold">Importeer Recept</h2>
           <button
             onClick={onClose}
@@ -158,7 +157,9 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
           </button>
         </div>
 
-        <div className="space-y-4 sm:space-y-6">
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto p-4 sm:p-6 flex-1">
+          <div className="space-y-4 sm:space-y-6">
           {/* URL Import Section */}
           <div>
             <div className="mb-2 sm:mb-3 flex items-center gap-2">
@@ -205,14 +206,6 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
               disabled={!!url || photos.length > 0}
               rows={5}
               className="input resize-none"
-            />
-            <input
-              type="url"
-              placeholder="Bron URL (optioneel)"
-              value={pastedSourceUrl}
-              onChange={(e) => setPastedSourceUrl(e.target.value)}
-              disabled={!!url || photos.length > 0 || !pastedContent}
-              className="input mt-2"
             />
             <p className="mt-1.5 text-xs text-[oklch(var(--muted-foreground))]">
               💡 Voor login-beveiligde sites: kopieer de hele pagina
@@ -306,14 +299,18 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
               </p>
             )}
           </div>
+          </div>
+        </div>
 
-          <div className="mt-6 sm:mt-8 flex gap-2 sm:gap-3">
-            <button onClick={onClose} className="btn btn-outline flex-1" disabled={isImporting}>
+        {/* Fixed Footer */}
+        <div className="border-t border-[oklch(var(--border))] p-4 sm:p-6">
+          <div className="flex gap-2 sm:gap-3">
+            <button onClick={onClose} className="btn btn-outline btn-md flex-1" disabled={isImporting}>
               Annuleren
             </button>
             <button
               onClick={handleImport}
-              className="btn btn-primary flex-1"
+              className="btn btn-primary btn-md flex-1"
               disabled={isImporting || (!url && photos.length === 0 && !pastedContent)}
             >
               {isImporting ? 'Bezig...' : 'Importeren'}

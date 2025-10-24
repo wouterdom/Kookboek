@@ -197,14 +197,14 @@ export function RecipeCategorySelector({
             <div className="flex justify-end gap-3 pt-4 border-t">
               <button
                 onClick={() => setIsOpen(false)}
-                className="btn btn-secondary"
+                className="btn btn-outline btn-md"
                 disabled={isSaving}
               >
                 Annuleren
               </button>
               <button
                 onClick={handleSave}
-                className="btn btn-primary"
+                className="btn btn-primary btn-md"
                 disabled={isSaving}
               >
                 {isSaving ? 'Opslaan...' : 'Opslaan'}

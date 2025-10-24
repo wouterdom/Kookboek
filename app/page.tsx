@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Search, Upload, Heart, Filter, ChevronDown } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 import { ImportDialog } from "@/components/import-dialog"
@@ -34,6 +35,7 @@ export default function HomePage() {
   const PAGE_SIZE = 24
 
   const supabase = createClient()
+  const router = useRouter()
 
   // Fetch all recipes from Supabase once
   const loadAllRecipes = useCallback(async () => {
@@ -214,6 +216,14 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <PdfImportButton />
+            <button
+              onClick={() => router.push('/recipes/new')}
+              className="btn btn-sm flex items-center gap-2 text-xs bg-blue-600 text-white hover:bg-blue-700 border-blue-600 transition-colors"
+              aria-label="Handmatig Toevoegen"
+            >
+              <span>+</span>
+              <span className="hidden sm:inline">Handmatig Toevoegen</span>
+            </button>
             <button
               onClick={() => setIsImportDialogOpen(true)}
               className="btn btn-primary btn-sm sm:btn-md flex items-center gap-1.5 sm:gap-2"

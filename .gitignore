@@ -68,3 +68,8 @@ logs
 SERVER-ACCESS.md
 SUPABASE-CONNECTION.md
 COOLIFY-DEPLOYMENT.md
+
+# Development files and documentation
+wireframes/
+docs/
+CLAUDE.md
