@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
         port: '8000',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'wotis.tail878d82.ts.net',
+        port: '8443',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
