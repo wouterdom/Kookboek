@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
         hostname: 'ui-avatars.com',
       },
       {
-        protocol: 'http',
+        protocol: 'https',
         hostname: '192.168.1.63',
         port: '8000',
         pathname: '/storage/v1/object/public/**',
