@@ -5,17 +5,18 @@ import Image from 'next/image'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 
 interface PageProps {
-  params: { jobId: string }
+  params: Promise<{ jobId: string }>
 }
 
 export default async function PdfImportReviewPage({ params }: PageProps) {
+  const resolvedParams = await params
   const supabase = await createClient()
 
   // Get the import job details
   const { data: job, error: jobError } = await supabase
     .from('pdf_import_jobs')
     .select('*')
-    .eq('id', params.jobId)
+    .eq('id', resolvedParams.jobId)
     .single()
 
   if (jobError || !job) {
@@ -26,7 +27,7 @@ export default async function PdfImportReviewPage({ params }: PageProps) {
   const { data: recipes, error: recipesError } = await supabase
     .from('recipes')
     .select('*')
-    .eq('pdf_import_job_id', params.jobId)
+    .eq('pdf_import_job_id', resolvedParams.jobId)
     .order('created_at', { ascending: true })
 
   if (recipesError) {

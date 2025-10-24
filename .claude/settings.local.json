@@ -60,7 +60,12 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "mcp__shadcn__get_project_registries",
+      "mcp__shadcn__search_items_in_registries",
+      "mcp__shadcn__view_items_in_registries",
+      "Bash(dir /b \"C:\\Users\\wdom\\Kookboek\\components\\ui\")",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -12,6 +12,7 @@ import { CategoryLabelManagementModal } from "@/components/category-label-manage
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { Recipe, CategoriesByType, CategoryType } from "@/types/supabase"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 
 export default function HomePage() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([]) // Store all fetched recipes
@@ -472,6 +473,9 @@ export default function HomePage() {
           categoryType={labelManagementType}
         />
       )}
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   )
 }

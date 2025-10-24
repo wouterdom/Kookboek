@@ -1,22 +1,96 @@
 {
-  "name": "Kookboek - Recepten",
+  "name": "Kookboek - Recepten App",
   "short_name": "Kookboek",
-  "description": "Digital recipe book for managing and organizing family recipes",
+  "description": "Je digitale kookboek voor het bewaren en organiseren van familierecep­ten",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#36B5AC",
+  "theme_color": "#14b8a6",
+  "orientation": "portrait",
+  "scope": "/",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
-      "src": "/apple-touch-icon.svg",
-      "sizes": "180x180",
-      "type": "image/svg+xml"
+      "src": "/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot1.png",
+      "sizes": "540x1140",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Kookboek - Receptenoverzicht"
+    },
+    {
+      "src": "/screenshot2.png",
+      "sizes": "540x1140",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Kookboek - Recept Details"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nieuw recept",
+      "url": "/recipes/new",
+      "description": "Voeg een nieuw recept toe"
+    },
+    {
+      "name": "Zoek recepten",
+      "url": "/?search=true",
+      "description": "Zoek in je recepten"
+    },
+    {
+      "name": "Categorieën",
+      "url": "/?categories=true",
+      "description": "Bekijk recepten per categorie"
+    }
+  ],
+  "categories": ["food", "lifestyle"],
+  "lang": "nl-BE"
 }

@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing audio file: ${audioFile.name}, size: ${audioFile.size} bytes, type: ${audioFile.type}`)
 
+    // Check if audio file is too small (likely empty/silent)
+    const MIN_SIZE = 20000 // 20KB minimum (at least 2-3 seconds of recording)
+    if (audioFile.size < MIN_SIZE) {
+      console.log('Audio file too small, likely too short recording:', audioFile.size, 'bytes')
+      return NextResponse.json(
+        { error: 'Opname te kort. Neem minimaal 2 seconden op met duidelijke spraak.' },
+        { status: 400 }
+      )
+    }
+
     // Convert audio to base64
     const bytes = await audioFile.arrayBuffer()
     const buffer = Buffer.from(bytes)
@@ -38,7 +48,13 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Je bent een recept-extractie assistent. De gebruiker heeft een recept ingesproken in het Nederlands.
 
-Analyseer de audio en extraheer de volgende informatie:
+KRITIEKE REGEL: Als er GEEN duidelijke spraak of receptinformatie in de audio is, retourneer dan ALLEEN dit JSON object:
+{
+  "error": "no_speech",
+  "message": "Geen spraak gedetecteerd"
+}
+
+Als je WEL duidelijke spraak detecteert met een recept, analyseer de audio en extraheer de volgende informatie:
 - Titel van het recept
 - Korte beschrijving (optioneel, als de gebruiker een beschrijving geeft)
 - Lijst met ingrediënten met hoeveelheden (elk ingrediënt op een nieuwe regel)
@@ -50,12 +66,13 @@ Analyseer de audio en extraheer de volgende informatie:
 - Gang: Classificeer het recept in EXACT ÉÉN van deze categorieën: "Amuse", "Voorgerecht", "Soep", "Hoofdgerecht", "Dessert", "Bijgerecht"
 
 BELANGRIJKE REGELS:
-1. Als de gebruiker "oma's appeltaart" zegt, schrijf het dan met hoofdletter: "Oma's Appeltaart"
-2. Ingrediënten moeten specifiek zijn met hoeveelheden (bijv. "250g bloem", niet alleen "bloem")
-3. Bereidingsstappen moeten genummerd zijn (1., 2., 3., etc.)
-4. Als tijden niet genoemd worden, schat deze realistisch
-5. Gang moet ALTIJD ingevuld zijn met EXACT één van deze 6 opties: Amuse, Voorgerecht, Soep, Hoofdgerecht, Dessert, Bijgerecht
-6. Voorbeelden: pasta/vlees/vis = Hoofdgerecht, salade als starter = Voorgerecht, taart = Dessert, groenten als side = Bijgerecht
+1. NOOIT een recept verzinnen als er geen spraak is - retourneer de error JSON
+2. Als de gebruiker "oma's appeltaart" zegt, schrijf het dan met hoofdletter: "Oma's Appeltaart"
+3. Ingrediënten moeten specifiek zijn met hoeveelheden (bijv. "250g bloem", niet alleen "bloem")
+4. Bereidingsstappen moeten genummerd zijn (1., 2., 3., etc.)
+5. Als tijden niet genoemd worden, schat deze realistisch
+6. Gang moet ALTIJD ingevuld zijn met EXACT één van deze 6 opties: Amuse, Voorgerecht, Soep, Hoofdgerecht, Dessert, Bijgerecht
+7. Voorbeelden: pasta/vlees/vis = Hoofdgerecht, salade als starter = Voorgerecht, taart = Dessert, groenten als side = Bijgerecht
 
 Retourneer ALLEEN een geldig JSON object in dit EXACTE formaat (geen extra tekst ervoor of erna):
 {
@@ -110,6 +127,15 @@ Als bepaalde velden niet duidelijk zijn uit de audio, doe je beste schatting.`
     }
 
     const recipe = JSON.parse(jsonMatch[0])
+
+    // Check if the AI detected no speech
+    if (recipe.error === 'no_speech') {
+      console.log('AI detected no speech in audio')
+      return NextResponse.json(
+        { error: 'Geen spraak gedetecteerd. Spreek duidelijk het recept in en probeer opnieuw.' },
+        { status: 400 }
+      )
+    }
 
     // Validate that we at least have a title
     if (!recipe.title) {

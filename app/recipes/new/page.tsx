@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mic, Loader2, MessageSquare, StopCircle, Send, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
+import MicrophonePermissionModal from '@/components/microphone-permission-modal'
+import { LoadingOverlay } from '@/components/loading-overlay'
 
 export default function NewRecipePage() {
   const router = useRouter()
@@ -14,6 +16,8 @@ export default function NewRecipePage() {
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [showPermissionModal, setShowPermissionModal] = useState(false)
+  const [hasPermissionCheck, setHasPermissionCheck] = useState(false)
   const [chatMessages, setChatMessages] = useState<Array<{ type: 'ai' | 'user', message: string, recipeData?: any }>>([
     {
       type: 'ai',
@@ -35,6 +39,9 @@ export default function NewRecipePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const hasSoundRef = useRef<boolean>(false)
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -45,9 +52,109 @@ export default function NewRecipePage() {
     }
   }, [])
 
+  // Check microphone permissions on mount (optional, just for better UX)
+  useEffect(() => {
+    const checkMicrophonePermission = async () => {
+      try {
+        // Check if we're in a secure context (HTTPS or localhost)
+        if (!window.isSecureContext) {
+          console.warn('Not in secure context, microphone may not work. Use HTTPS.')
+          return
+        }
+
+        // Try to check permission status if available
+        if (navigator.permissions && navigator.permissions.query) {
+          try {
+            const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+
+            if (permissionStatus.state === 'denied') {
+              toast.info('Microfoon toegang geblokkeerd', {
+                description: 'Je kunt nog steeds recepten handmatig invoeren of ga naar instellingen om microfoon toe te staan.'
+              })
+            } else if (permissionStatus.state === 'prompt') {
+              console.log('Microphone permission will be requested when needed')
+            } else if (permissionStatus.state === 'granted') {
+              console.log('Microphone permission already granted')
+            }
+          } catch (e) {
+            // Some browsers don't support microphone in permissions.query
+            console.log('Cannot check microphone permission status:', e)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking microphone permission:', error)
+      }
+    }
+
+    checkMicrophonePermission()
+  }, [])
+
+  const handleMicrophoneClick = useCallback(() => {
+    // Check if we've already requested permission in this session
+    if (!hasPermissionCheck) {
+      setShowPermissionModal(true)
+    } else {
+      startVoiceInput()
+    }
+  }, [hasPermissionCheck]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const requestMicrophonePermission = useCallback(async () => {
+    setShowPermissionModal(false)
+    setHasPermissionCheck(true)
+    await startVoiceInput()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const startVoiceInput = useCallback(async () => {
     try {
+      // First check if we can access permissions API
+      if (navigator.permissions) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+          if (permissionStatus.state === 'denied') {
+            toast.error('Microfoon toegang geblokkeerd', {
+              description: 'Klik op het slotje (🔒) in de adresbalk en zet "Microfoon" op "Toestaan".'
+            })
+            return
+          }
+        } catch (e) {
+          // Permissions API might not support microphone query, continue anyway
+          console.log('Permissions API check failed, continuing...', e)
+        }
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setHasPermissionCheck(true) // Permission was granted
+
+      // Set up audio analysis for sound detection
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      audioContextRef.current = audioContext
+      const source = audioContext.createMediaStreamSource(stream)
+      const analyser = audioContext.createAnalyser()
+      analyserRef.current = analyser
+      analyser.fftSize = 2048
+      source.connect(analyser)
+
+      // Reset sound detection flag
+      hasSoundRef.current = false
+
+      // Start monitoring audio levels
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+      let isMonitoring = true
+      const checkAudioLevel = () => {
+        if (!isMonitoring) return
+
+        analyser.getByteFrequencyData(dataArray)
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length
+
+        // If average level is above threshold, we detected sound (increased from 5 to 15)
+        if (average > 15) {
+          hasSoundRef.current = true
+        }
+
+        requestAnimationFrame(checkAudioLevel)
+      }
+      requestAnimationFrame(checkAudioLevel)
+
       const mediaRecorder = new MediaRecorder(stream)
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
@@ -60,9 +167,31 @@ export default function NewRecipePage() {
       }
 
       mediaRecorder.onstop = async () => {
+        // Stop monitoring
+        isMonitoring = false
+
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        await processVoiceInput(audioBlob)
+        const finalDuration = recordingDuration
+
+        // Check minimum recording duration (2 seconds)
+        if (finalDuration < 2) {
+          toast.error('Opname te kort', {
+            description: `Opname was slechts ${finalDuration} seconden. Neem minimaal 2 seconden op.`
+          })
+        } else if (!hasSoundRef.current) {
+          // Check if we detected any sound
+          toast.error('Geen spraak gedetecteerd', {
+            description: 'Er is geen geluid opgenomen. Spreek duidelijk in de microfoon.'
+          })
+        } else {
+          await processVoiceInput(audioBlob)
+        }
+
+        // Cleanup
         stream.getTracks().forEach(track => track.stop())
+        if (audioContextRef.current) {
+          audioContextRef.current.close()
+        }
         if (recordingTimerRef.current) {
           clearInterval(recordingTimerRef.current)
         }
@@ -79,13 +208,29 @@ export default function NewRecipePage() {
       toast.success('🎤 Opname gestart', {
         description: 'Dicteer je volledige recept. Klik opnieuw om te stoppen.'
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting recording:', error)
-      toast.error('Kan microfoon niet openen', {
-        description: 'Geef toestemming om microfoon te gebruiken.'
-      })
+
+      // More specific error handling
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        toast.error('Microfoon toegang geweigerd', {
+          description: 'Klik op het slotje in de adresbalk en geef toegang tot de microfoon.'
+        })
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        toast.error('Geen microfoon gevonden', {
+          description: 'Controleer of je microfoon aangesloten is.'
+        })
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        toast.error('Microfoon is in gebruik', {
+          description: 'Sluit andere programma\'s die de microfoon gebruiken.'
+        })
+      } else {
+        toast.error('Kan microfoon niet openen', {
+          description: 'Controleer je browserinstellingen en geef toegang tot de microfoon.'
+        })
+      }
     }
-  }, [])
+  }, [isRecording])
 
   const stopVoiceInput = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -305,6 +450,18 @@ export default function NewRecipePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Loading Overlay for Voice Processing */}
+      <LoadingOverlay
+        message="AI verwerkt je recept..."
+        isOpen={isProcessing}
+      />
+
+      {/* Loading Overlay for Saving Recipe */}
+      <LoadingOverlay
+        message="Recept opslaan en foto genereren..."
+        isOpen={isSaving}
+      />
+
       {/* Header - Compact */}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3">
@@ -343,7 +500,7 @@ export default function NewRecipePage() {
               </div>
               <button
                 type="button"
-                onClick={isRecording ? stopVoiceInput : startVoiceInput}
+                onClick={isRecording ? stopVoiceInput : handleMicrophoneClick}
                 disabled={isProcessing}
                 className={`p-3 sm:p-4 rounded-full transition-all shadow-lg flex-shrink-0 ${
                   isRecording
@@ -656,6 +813,13 @@ export default function NewRecipePage() {
           </div>
         )}
       </div>
+
+      {/* Microphone Permission Modal */}
+      <MicrophonePermissionModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        onRequestPermission={requestMicrophonePermission}
+      />
     </div>
   )
 }

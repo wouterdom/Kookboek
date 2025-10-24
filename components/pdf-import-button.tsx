@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from 'react'
 import { FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { LoadingOverlay } from '@/components/loading-overlay'
 
 export function PdfImportButton() {
   const pdfInputRef = useRef<HTMLInputElement>(null)
@@ -59,6 +60,10 @@ export function PdfImportButton() {
 
   return (
     <>
+      <LoadingOverlay
+        message="PDF kookboek aan het uploaden..."
+        isOpen={isUploading}
+      />
       <button
         onClick={() => pdfInputRef.current?.click()}
         disabled={isUploading}
