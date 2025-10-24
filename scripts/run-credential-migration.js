@@ -2,15 +2,17 @@
 const fs = require('fs')
 const path = require('path')
 
-const DATABASE_URL = "postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres"
-
 async function runMigration() {
   try {
     // Use node-postgres if available, otherwise use fetch with Supabase
     const { createClient } = require('@supabase/supabase-js')
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://192.168.1.63:8000'
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MzM4NzM0MDAsCiAgImV4cCI6IDE4OTE2NDAyMDAKfQ.Bc3e8FPa-xWVWDCxnewD0_njnU-WOtGGvxeRN4-NiRI'
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_KEY')
+    }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 

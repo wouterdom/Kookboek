@@ -92,17 +92,17 @@ Add each variable one by one:
 
 | Variable Name | Value |
 |---------------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `http://192.168.1.63:8000` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.HU78hXVnv91B_2r3HZx6ewwO3Q8VAryIZWkQuEA62aI` |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.WlwUOz5EkFPO893iYN3f_bJ4GBthoDt88iaqZHdZWQ8` |
-| `DATABASE_URL` | `postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres` |
-| `JWT_SECRET` | `NqlgGBVyg5XU4JmNnzXdYxjjvFZYy2GdHJrRC55cVbQ` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `http://YOUR_SERVER_IP:8000` (e.g., `http://192.168.1.63:8000`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Get from your Supabase instance (JWT with role "anon") |
+| `SUPABASE_SERVICE_ROLE_KEY` | Get from your Supabase instance (JWT with role "service_role") |
+| `DATABASE_URL` | `postgresql://postgres:YOUR_PASSWORD@YOUR_SERVER_IP:5432/postgres` |
+| `JWT_SECRET` | Generate with: `openssl rand -base64 32` |
 
 #### AI Configuration
 
 | Variable Name | Value |
 |---------------|-------|
-| `GOOGLE_AI_API_KEY` | `AIzaSyAuqa_I8uWqL2WO1r7gUXFaJPy_RnwLtkQ` |
+| `GOOGLE_AI_API_KEY` | Get from Google AI Studio: https://aistudio.google.com/apikey |
 
 #### App Configuration
 
@@ -494,12 +494,12 @@ docker system prune -a
 ### Environment Variables Quick Copy
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=http://192.168.1.63:8000
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQxNzY5MjAwLCJleHAiOjE3OTk1MzU2MDB9.HU78hXVnv91B_2r3HZx6ewwO3Q8VAryIZWkQuEA62aI
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE2NDE3NjkyMDAsImV4cCI6MTc5OTUzNTYwMH0.WlwUOz5EkFPO893iYN3f_bJ4GBthoDt88iaqZHdZWQ8
-DATABASE_URL=postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres
-JWT_SECRET=NqlgGBVyg5XU4JmNnzXdYxjjvFZYy2GdHJrRC55cVbQ
-GOOGLE_AI_API_KEY=AIzaSyAuqa_I8uWqL2WO1r7gUXFaJPy_RnwLtkQ
+NEXT_PUBLIC_SUPABASE_URL=http://YOUR_SERVER_IP:8000
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_SERVER_IP:5432/postgres
+JWT_SECRET=your_generated_jwt_secret_here
+GOOGLE_AI_API_KEY=your_google_ai_api_key_here
 NEXT_PUBLIC_APP_URL=http://kookboek.homelab.local
 ```
 
