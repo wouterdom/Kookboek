@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react"
 import { X, Upload, Image as ImageIcon, Camera } from "lucide-react"
 import Image from "next/image"
 import { toast } from "sonner"
+import { LoadingOverlay } from "@/components/loading-overlay"
 
 interface ImportDialogProps {
   isOpen: boolean
@@ -128,6 +129,27 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
           setUrl('')
         }
 
+        // Check if it's a duplicate error
+        if (response?.status === 409) {
+          // Show duplicate warning with option to view existing recipe
+          if (error?.existingRecipe) {
+            toast.error(errorMessage, {
+              duration: 8000,
+              action: {
+                label: 'Bekijk recept',
+                onClick: () => {
+                  window.location.href = `/recipes/${error.existingRecipe.slug}`
+                }
+              }
+            })
+          } else {
+            toast.warning(errorMessage, { duration: 6000 })
+          }
+          // Don't throw error for duplicates, just close the dialog
+          onClose()
+          return
+        }
+
         throw new Error(errorMessage)
       }
     } catch (error) {
@@ -143,6 +165,10 @@ export function ImportDialog({ isOpen, onClose, onSuccess }: ImportDialogProps) 
 
   return (
     <>
+      <LoadingOverlay
+        message="Recept aan het importeren..."
+        isOpen={isImporting}
+      />
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg max-h-[90vh] rounded-lg bg-white shadow-lg flex flex-col">
         {/* Fixed Header */}

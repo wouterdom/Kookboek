@@ -552,6 +552,25 @@ export async function POST(request: NextRequest) {
       imageUrl = await generateRecipeImage(recipeData.title, slug, supabase)
     }
 
+    // Check if recipe already exists (by slug)
+    const existingRecipeResult = await supabase
+      .from('recipes')
+      .select('id, title, slug')
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (existingRecipeResult.data) {
+      const existingRecipe = existingRecipeResult.data as { id: string; title: string; slug: string }
+      console.log(`Recipe with slug "${slug}" already exists`)
+      return NextResponse.json({
+        error: `⚠️ Dit recept bestaat al!\n\n"${existingRecipe.title}" is al geïmporteerd.\n\nWil je het bestaande recept bekijken of bewerken?`,
+        existingRecipe: {
+          title: existingRecipe.title,
+          slug: existingRecipe.slug
+        }
+      }, { status: 409 }) // 409 Conflict status for duplicate
+    }
+
     // Insert recipe into database - be very lenient with data
     const recipe: RecipeInsert = {
       title: recipeData.title || 'Geïmporteerd Recept',
@@ -579,7 +598,18 @@ export async function POST(request: NextRequest) {
 
     if (recipeError) {
       console.error('Error inserting recipe:', recipeError)
-      return NextResponse.json({ error: 'Failed to save recipe' }, { status: 500 })
+
+      // Check if it's a unique constraint error (duplicate)
+      if (recipeError.code === '23505' || recipeError.message?.includes('duplicate') || recipeError.message?.includes('unique')) {
+        return NextResponse.json({
+          error: `⚠️ Dit recept bestaat mogelijk al!\n\nEen recept met een vergelijkbare titel is al geïmporteerd.\n\nControleer je receptenlijst.`
+        }, { status: 409 })
+      }
+
+      // Generic error
+      return NextResponse.json({
+        error: `❌ Kon recept niet opslaan\n\n${recipeError.message || 'Er ging iets mis bij het opslaan in de database.'}`
+      }, { status: 500 })
     }
 
     // Insert ingredients - be very lenient
