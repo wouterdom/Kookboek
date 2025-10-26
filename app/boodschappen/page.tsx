@@ -362,7 +362,7 @@ export default function BoodschappenPage() {
         <div className="inline-flex items-center rounded-lg bg-muted p-0.5 no-print">
           <button
             onClick={() => setViewMode("expanded")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-xs font-medium transition-all ${
               viewMode === "expanded"
                 ? "bg-white text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -373,7 +373,7 @@ export default function BoodschappenPage() {
           </button>
           <button
             onClick={() => setViewMode("compact")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-xs font-medium transition-all ${
               viewMode === "compact"
                 ? "bg-white text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -385,20 +385,20 @@ export default function BoodschappenPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
           <button
             onClick={() => setShowBulkAddModal(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             title="Toevoegen"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           <button
             onClick={() => setShowClearModal(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
             title="Legen"
           >
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
       </Header>
