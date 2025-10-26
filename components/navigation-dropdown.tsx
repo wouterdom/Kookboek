@@ -93,7 +93,7 @@ export function NavigationDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-[9999] mt-2 w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[220px] max-w-xs rounded-lg border bg-popover p-2 shadow-xl">
+        <div className="absolute left-0 top-full z-[9999] mt-2 w-[200px] sm:w-auto sm:min-w-[220px] rounded-lg border bg-popover p-2 shadow-xl">
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)

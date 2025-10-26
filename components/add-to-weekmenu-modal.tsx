@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useWeekMenu } from '@/contexts/weekmenu-context'
 import { getCurrentWeekMonday, formatDateForDB } from '@/lib/weekmenu-utils'
 import Image from 'next/image'
+import { IngredientSelectionPopup } from './ingredient-selection-popup'
+import { Modal } from './modal'
 
 interface AddToWeekmenuModalProps {
   isOpen: boolean
@@ -21,6 +23,9 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
   const [filteredRecipes, setFilteredRecipes] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [manualTitle, setManualTitle] = useState('')
+  const [showIngredientPopup, setShowIngredientPopup] = useState(false)
+  const [recipeWithIngredients, setRecipeWithIngredients] = useState<any>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { addToWeekMenu, isRecipeInWeekMenu } = useWeekMenu()
   const supabase = createClient()
 
@@ -30,6 +35,9 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
       setView('choose')
       setSearchQuery('')
       setManualTitle('')
+      setShowIngredientPopup(false)
+      setRecipeWithIngredients(null)
+      setErrorMessage(null)
     }
   }, [isOpen])
 
@@ -96,11 +104,70 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
 
   const handleSelectRecipe = async (recipeId: string) => {
     try {
-      await addToWeekMenu(recipeId)
-      onClose()
+      // First, get recipe with ingredients
+      const { data: recipeData, error } = await supabase
+        .from('recipes')
+        .select(`
+          id,
+          title,
+          image_url,
+          servings_default,
+          parsed_ingredients (
+            id,
+            ingredient_name_nl,
+            amount_display,
+            order_index
+          )
+        `)
+        .eq('id', recipeId)
+        .single()
+
+      if (error) throw error
+
+      // Add to weekmenu with callback to show ingredient selection
+      await addToWeekMenu(recipeId, () => {
+        // Show ingredient selection popup
+        setRecipeWithIngredients(recipeData)
+        setShowIngredientPopup(true)
+      })
     } catch (error) {
       console.error('Error adding recipe to weekmenu:', error)
+      setErrorMessage('Er ging iets mis bij het toevoegen aan het weekmenu')
     }
+  }
+
+  const handleIngredientConfirm = async (groceryItems: any[]) => {
+    try {
+      // Add items to grocery list via API
+      const response = await fetch('/api/groceries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: groceryItems })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to add ingredients to grocery list')
+      }
+
+      const data = await response.json()
+      console.log(`Successfully added ${data.count} items to grocery list`)
+
+      // Close popups
+      setShowIngredientPopup(false)
+      setRecipeWithIngredients(null)
+      onClose() // Close the main modal too
+    } catch (error) {
+      console.error('Error adding to grocery list:', error)
+      setErrorMessage('Er ging iets mis bij het toevoegen aan de boodschappenlijst')
+      // Keep popup open so user can retry
+    }
+  }
+
+  const handleIngredientCancel = () => {
+    setShowIngredientPopup(false)
+    setRecipeWithIngredients(null)
+    onClose() // Close the main modal when user skips
   }
 
   const handleManualAdd = async () => {
@@ -134,7 +201,7 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
       onClose()
     } catch (error) {
       console.error('Error adding manual item:', error)
-      alert('Er ging iets mis bij het toevoegen. Probeer het opnieuw.')
+      setErrorMessage('Er ging iets mis bij het toevoegen. Probeer het opnieuw.')
     }
   }
 
@@ -329,6 +396,26 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
           )}
         </div>
       </div>
+
+      {/* Error Modal */}
+      {errorMessage && (
+        <Modal
+          isOpen={!!errorMessage}
+          onClose={() => setErrorMessage(null)}
+          message={errorMessage}
+          type="error"
+        />
+      )}
+
+      {/* Ingredient Selection Popup */}
+      {showIngredientPopup && recipeWithIngredients && (
+        <IngredientSelectionPopup
+          isOpen={showIngredientPopup}
+          recipe={recipeWithIngredients}
+          onConfirm={handleIngredientConfirm}
+          onCancel={handleIngredientCancel}
+        />
+      )}
     </div>
   )
 }
