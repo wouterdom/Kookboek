@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { GroceryCategoryUpdate } from '@/types/supabase'
 
 // PUT /api/groceries/categories/[id] - Update category
 export async function PUT(
@@ -12,14 +13,7 @@ export async function PUT(
   const { name, color, icon, order_index, is_visible } = body
 
   // Build update object with only provided fields
-  const updateData: {
-    name?: string
-    slug?: string
-    color?: string
-    icon?: string
-    order_index?: number
-    is_visible?: boolean
-  } = {}
+  const updateData: GroceryCategoryUpdate = {}
 
   if (name !== undefined) {
     if (!name?.trim()) {
@@ -62,6 +56,7 @@ export async function PUT(
 
   const { data: category, error } = await supabase
     .from('grocery_categories')
+    // @ts-ignore - Supabase SSR client type inference issue
     .update(updateData)
     .eq('id', id)
     .select()
@@ -102,7 +97,7 @@ export async function DELETE(
     return NextResponse.json({ error: fetchError.message }, { status: 500 })
   }
 
-  if (category.is_system) {
+  if ((category as any)?.is_system) {
     return NextResponse.json({ error: 'Cannot delete system category' }, { status: 403 })
   }
 

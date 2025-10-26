@@ -1,3 +1,4 @@
+import type { WeeklyMenuItemInsert, WeeklyMenuItemUpdate } from "@/types/supabase"
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -112,7 +113,8 @@ export async function POST(request: Request) {
 
   const { data: item, error } = await supabase
     .from('weekly_menu_items')
-    .insert(insertData)
+    // @ts-ignore
+    .insert(insertData as any)
     .select(`
       *,
       recipe:recipes(

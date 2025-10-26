@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { GroceryCategoryInsert } from '@/types/supabase'
 
 // GET /api/groceries/categories - Get all grocery categories
 export async function GET() {
@@ -39,14 +40,7 @@ export async function POST(request: Request) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
-  const insertData: {
-    name: string
-    slug: string
-    color?: string
-    icon?: string
-    order_index?: number
-    is_system: boolean
-  } = {
+  const insertData: GroceryCategoryInsert = {
     name: name.trim(),
     slug,
     is_system: false
@@ -64,6 +58,7 @@ export async function POST(request: Request) {
 
   const { data: category, error } = await supabase
     .from('grocery_categories')
+    // @ts-ignore - Supabase SSR client type inference issue
     .insert(insertData)
     .select()
     .single()

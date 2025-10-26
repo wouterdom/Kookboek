@@ -105,13 +105,13 @@ Geef ALLEEN de JSON array terug, zonder extra tekst of markdown.`
     // Categorize each item
     const items = parsedItems.map((item) => {
       // Get the category slug
-      const categorySlug = categorizeIngredient(item.name, categories)
+      const categorySlug = categorizeIngredient(item.name, categories || [])
 
       // Get the category ID from the slug
-      const categoryId = getCategoryIdFromSlug(categorySlug, categories)
+      const categoryId = getCategoryIdFromSlug(categorySlug, categories || [])
 
       // Fallback to first category if no match
-      const finalCategoryId = categoryId || categories[0]?.id || ""
+      const finalCategoryId = categoryId || ((categories && categories[0]) ? (categories[0] as any).id : "") || ""
 
       return {
         name: item.name,

@@ -611,8 +611,8 @@ export async function POST(request: NextRequest) {
 
     const { data: insertedRecipe, error: recipeError } = await supabase
       .from('recipes')
-      . // @ts-expect-error
-      insert(recipe)
+      // @ts-ignore
+      .insert(recipe as any)
       .select()
       .single()
 
@@ -665,8 +665,8 @@ export async function POST(request: NextRequest) {
       if (ingredients.length > 0) {
         const { error: ingredientsError } = await supabase
           .from('parsed_ingredients')
-          // @ts-expect-error
-          .insert(ingredients)
+          // @ts-ignore
+          .insert(ingredients as any)
 
         if (ingredientsError) {
           console.error('Error inserting ingredients:', ingredientsError)

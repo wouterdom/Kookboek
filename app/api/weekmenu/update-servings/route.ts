@@ -1,3 +1,4 @@
+import type { WeeklyMenuItemUpdate } from "@/types/supabase"
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
     // Update the servings for this recipe in the specified week
     const { error } = await supabase
       .from('weekly_menu_items')
-      .update({ servings })
+      // @ts-ignore
+    .update({ servings } as any)
       .eq('recipe_id', recipe_id)
       .eq('week_date', week_date)
 

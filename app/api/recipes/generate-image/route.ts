@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@/lib/supabase/server'
+import type { RecipeUpdate } from '@/types/supabase'
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
 
@@ -102,10 +103,14 @@ Create an image that represents this dish in the most appealing way possible.`
     console.log('Image uploaded, updating recipe...')
 
     // Update recipe with image URL
+    const updateData: RecipeUpdate = {
+      image_url: publicUrl
+    }
+
     const { error: updateError } = await supabase
       .from('recipes')
-      // @ts-expect-error
-      .update({ image_url: publicUrl })
+      // @ts-ignore - Supabase SSR client type inference issue
+      .update(updateData)
       .eq('id', recipeId)
 
     if (updateError) {

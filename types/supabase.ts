@@ -1,388 +1,46 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+// Re-export from the main database types file
+import type { Database as DatabaseType } from '@/lib/database.types'
 
-export interface Database {
-  public: {
-    Tables: {
-      recipes: {
-        Row: {
-          id: string
-          title: string
-          slug: string
-          description: string | null
-          content_markdown: string | null
-          prep_time: number | null
-          cook_time: number | null
-          servings_default: number
-          difficulty: string | null
-          image_url: string | null
-          source_url: string | null
-          source_name: string | null
-          source_normalized: string | null
-          source_language: string | null
-          labels: string[] | null
-          is_favorite: boolean
-          notes: string | null
-          notes_updated_at: string | null
-          search_vector: unknown | null
-          pdf_import_job_id: string | null
-          pdf_source_pages: string[] | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          title: string
-          slug: string
-          description?: string | null
-          content_markdown?: string | null
-          prep_time?: number | null
-          cook_time?: number | null
-          servings_default?: number
-          difficulty?: string | null
-          image_url?: string | null
-          source_url?: string | null
-          source_name?: string | null
-          source_normalized?: string | null
-          source_language?: string | null
-          labels?: string[] | null
-          is_favorite?: boolean
-          notes?: string | null
-          notes_updated_at?: string | null
-          search_vector?: unknown | null
-          pdf_import_job_id?: string | null
-          pdf_source_pages?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          title?: string
-          slug?: string
-          description?: string | null
-          content_markdown?: string | null
-          prep_time?: number | null
-          cook_time?: number | null
-          servings_default?: number | null
-          difficulty?: string | null
-          image_url?: string | null
-          source_url?: string | null
-          source_name?: string | null
-          source_normalized?: string | null
-          source_language?: string | null
-          labels?: string[] | null
-          is_favorite?: boolean
-          notes?: string | null
-          notes_updated_at?: string | null
-          search_vector?: unknown | null
-          pdf_import_job_id?: string | null
-          pdf_source_pages?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      pdf_import_jobs: {
-        Row: {
-          id: string
-          filename: string
-          file_size: number
-          status: string
-          total_pages: number | null
-          current_page: number | null
-          recipes_found: number | null
-          recipes_imported: number | null
-          error_message: string | null
-          created_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          filename: string
-          file_size: number
-          status?: string
-          total_pages?: number | null
-          current_page?: number | null
-          recipes_found?: number | null
-          recipes_imported?: number | null
-          error_message?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          filename?: string
-          file_size?: number
-          status?: string
-          total_pages?: number | null
-          current_page?: number | null
-          recipes_found?: number | null
-          recipes_imported?: number | null
-          error_message?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-      }
-      parsed_ingredients: {
-        Row: {
-          id: string
-          recipe_id: string
-          ingredient_name_nl: string
-          amount: number | null
-          unit: string | null
-          amount_display: string | null
-          scalable: boolean
-          section: string | null
-          order_index: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          recipe_id: string
-          ingredient_name_nl: string
-          amount?: number | null
-          unit?: string | null
-          amount_display?: string | null
-          scalable?: boolean
-          section?: string | null
-          order_index?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          recipe_id?: string
-          ingredient_name_nl?: string
-          amount?: number | null
-          unit?: string | null
-          amount_display?: string | null
-          scalable?: boolean
-          section?: string | null
-          order_index?: number | null
-          created_at?: string
-        }
-      }
-      tags: {
-        Row: {
-          id: string
-          name: string
-          slug: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          slug: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          slug?: string
-          created_at?: string
-        }
-      }
-      recipe_tags: {
-        Row: {
-          recipe_id: string
-          tag_id: string
-        }
-        Insert: {
-          recipe_id: string
-          tag_id: string
-        }
-        Update: {
-          recipe_id?: string
-          tag_id?: string
-        }
-      }
-      extracted_keywords: {
-        Row: {
-          id: string
-          recipe_id: string
-          keyword: string
-          confidence: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          recipe_id: string
-          keyword: string
-          confidence?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          recipe_id?: string
-          keyword?: string
-          confidence?: number | null
-          created_at?: string
-        }
-      }
-      category_types: {
-        Row: {
-          id: string
-          name: string
-          slug: string
-          description: string | null
-          allow_multiple: boolean
-          order_index: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          slug: string
-          description?: string | null
-          allow_multiple?: boolean
-          order_index?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          slug?: string
-          description?: string | null
-          allow_multiple?: boolean
-          order_index?: number | null
-          created_at?: string
-        }
-      }
-      categories: {
-        Row: {
-          id: string
-          name: string
-          slug: string | null
-          color: string
-          type_id: string | null
-          order_index: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          slug?: string | null
-          color: string
-          type_id?: string | null
-          order_index?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          slug?: string | null
-          color?: string
-          type_id?: string | null
-          order_index?: number | null
-          created_at?: string
-        }
-      }
-      recipe_categories: {
-        Row: {
-          recipe_id: string
-          category_id: string
-          created_at: string
-        }
-        Insert: {
-          recipe_id: string
-          category_id: string
-          created_at?: string
-        }
-        Update: {
-          recipe_id?: string
-          category_id?: string
-          created_at?: string
-        }
-      }
-      weekly_menu_items: {
-        Row: {
-          id: string
-          recipe_id: string
-          week_date: string
-          day_of_week: number | null
-          servings: number
-          is_completed: boolean
-          order_index: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          recipe_id: string
-          week_date: string
-          day_of_week?: number | null
-          servings?: number
-          is_completed?: boolean
-          order_index?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          recipe_id?: string
-          week_date?: string
-          day_of_week?: number | null
-          servings?: number
-          is_completed?: boolean
-          order_index?: number
-          created_at?: string
-        }
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-  }
-}
+export type Database = DatabaseType
 
-export type Recipe = Database['public']['Tables']['recipes']['Row']
-export type RecipeInsert = Database['public']['Tables']['recipes']['Insert']
-export type RecipeUpdate = Database['public']['Tables']['recipes']['Update']
+// Helper types
+export type Recipe = DatabaseType['public']['Tables']['recipes']['Row']
+export type RecipeInsert = DatabaseType['public']['Tables']['recipes']['Insert']
+export type RecipeUpdate = DatabaseType['public']['Tables']['recipes']['Update']
 
-export type ParsedIngredient = Database['public']['Tables']['parsed_ingredients']['Row']
-export type ParsedIngredientInsert = Database['public']['Tables']['parsed_ingredients']['Insert']
-export type ParsedIngredientUpdate = Database['public']['Tables']['parsed_ingredients']['Update']
+export type ParsedIngredient = DatabaseType['public']['Tables']['parsed_ingredients']['Row']
+export type ParsedIngredientInsert = DatabaseType['public']['Tables']['parsed_ingredients']['Insert']
+export type ParsedIngredientUpdate = DatabaseType['public']['Tables']['parsed_ingredients']['Update']
 
-export type Tag = Database['public']['Tables']['tags']['Row']
-export type TagInsert = Database['public']['Tables']['tags']['Insert']
-export type TagUpdate = Database['public']['Tables']['tags']['Update']
+export type CategoryType = DatabaseType['public']['Tables']['category_types']['Row']
+export type CategoryTypeInsert = DatabaseType['public']['Tables']['category_types']['Insert']
+export type CategoryTypeUpdate = DatabaseType['public']['Tables']['category_types']['Update']
 
-export type RecipeTag = Database['public']['Tables']['recipe_tags']['Row']
-export type RecipeTagInsert = Database['public']['Tables']['recipe_tags']['Insert']
-export type RecipeTagUpdate = Database['public']['Tables']['recipe_tags']['Update']
+export type Category = DatabaseType['public']['Tables']['categories']['Row']
+export type CategoryInsert = DatabaseType['public']['Tables']['categories']['Insert']
+export type CategoryUpdate = DatabaseType['public']['Tables']['categories']['Update']
 
-export type ExtractedKeyword = Database['public']['Tables']['extracted_keywords']['Row']
-export type ExtractedKeywordInsert = Database['public']['Tables']['extracted_keywords']['Insert']
-export type ExtractedKeywordUpdate = Database['public']['Tables']['extracted_keywords']['Update']
+export type RecipeCategory = DatabaseType['public']['Tables']['recipe_categories']['Row']
+export type RecipeCategoryInsert = DatabaseType['public']['Tables']['recipe_categories']['Insert']
+export type RecipeCategoryUpdate = DatabaseType['public']['Tables']['recipe_categories']['Update']
 
-export type CategoryType = Database['public']['Tables']['category_types']['Row']
-export type CategoryTypeInsert = Database['public']['Tables']['category_types']['Insert']
-export type CategoryTypeUpdate = Database['public']['Tables']['category_types']['Update']
+export type PdfImportJob = DatabaseType['public']['Tables']['pdf_import_jobs']['Row']
+export type PdfImportJobInsert = DatabaseType['public']['Tables']['pdf_import_jobs']['Insert']
+export type PdfImportJobUpdate = DatabaseType['public']['Tables']['pdf_import_jobs']['Update']
 
-export type Category = Database['public']['Tables']['categories']['Row']
-export type CategoryInsert = Database['public']['Tables']['categories']['Insert']
-export type CategoryUpdate = Database['public']['Tables']['categories']['Update']
+export type WeeklyMenuItem = DatabaseType['public']['Tables']['weekly_menu_items']['Row']
+export type WeeklyMenuItemInsert = DatabaseType['public']['Tables']['weekly_menu_items']['Insert']
+export type WeeklyMenuItemUpdate = DatabaseType['public']['Tables']['weekly_menu_items']['Update']
 
-export type RecipeCategory = Database['public']['Tables']['recipe_categories']['Row']
-export type RecipeCategoryInsert = Database['public']['Tables']['recipe_categories']['Insert']
-export type RecipeCategoryUpdate = Database['public']['Tables']['recipe_categories']['Update']
+export type GroceryCategory = DatabaseType['public']['Tables']['grocery_categories']['Row']
+export type GroceryCategoryInsert = DatabaseType['public']['Tables']['grocery_categories']['Insert']
+export type GroceryCategoryUpdate = DatabaseType['public']['Tables']['grocery_categories']['Update']
 
-export type PdfImportJob = Database['public']['Tables']['pdf_import_jobs']['Row']
-export type PdfImportJobInsert = Database['public']['Tables']['pdf_import_jobs']['Insert']
-export type PdfImportJobUpdate = Database['public']['Tables']['pdf_import_jobs']['Update']
+export type GroceryItem = DatabaseType['public']['Tables']['grocery_items']['Row']
+export type GroceryItemInsert = DatabaseType['public']['Tables']['grocery_items']['Insert']
+export type GroceryItemUpdate = DatabaseType['public']['Tables']['grocery_items']['Update']
 
-export type WeeklyMenuItem = Database['public']['Tables']['weekly_menu_items']['Row']
-export type WeeklyMenuItemInsert = Database['public']['Tables']['weekly_menu_items']['Insert']
-export type WeeklyMenuItemUpdate = Database['public']['Tables']['weekly_menu_items']['Update']
-
-// Extended types met relaties
+// Extended types with relations
 export type CategoryWithType = Category & {
   category_type: CategoryType
 }
@@ -406,4 +64,9 @@ export type WeeklyMenuItemWithRecipe = WeeklyMenuItem & {
   recipe: Recipe & {
     parsed_ingredients: ParsedIngredient[]
   }
+}
+
+// Grocery item with category
+export type GroceryItemWithCategory = GroceryItem & {
+  category: GroceryCategory | null
 }

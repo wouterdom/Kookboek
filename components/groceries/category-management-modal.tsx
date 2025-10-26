@@ -118,12 +118,11 @@ export function CategoryManagementModal({
                     {editingColorId === category.id && (
                       <div className="absolute right-0 top-full z-10 mt-2">
                         <ColorPicker
-                          value={category.color}
-                          onChange={(color) => {
+                          selectedColor={category.color}
+                          onColorSelect={(color) => {
                             onUpdateCategory(category.id, { color })
                             setEditingColorId(null)
                           }}
-                          onClose={() => setEditingColorId(null)}
                         />
                       </div>
                     )}

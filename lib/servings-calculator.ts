@@ -188,7 +188,7 @@ function decimalToFraction(decimal: number): string | null {
 
   // Check for common fractions (with tolerance)
   for (const [value, fraction] of Object.entries(commonFractions)) {
-    if (Math.abs(decimal - value) < 0.05) {
+    if (Math.abs(decimal - Number(value)) < 0.05) {
       return fraction;
     }
   }
