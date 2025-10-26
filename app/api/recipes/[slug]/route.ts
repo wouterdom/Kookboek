@@ -67,6 +67,12 @@ export async function PUT(
     if (body.source_url !== undefined) updateData.source_url = body.source_url
     if (body.labels !== undefined) updateData.labels = body.labels
 
+    // Handle notes update
+    if (body.notes !== undefined) {
+      updateData.notes = body.notes
+      updateData.notes_updated_at = new Date().toISOString()
+    }
+
     // If slug changed, update it (and ensure uniqueness)
     if (body.slug !== undefined && body.slug !== slug) {
       updateData.slug = body.slug

@@ -297,6 +297,38 @@ export interface Database {
           created_at?: string
         }
       }
+      weekly_menu_items: {
+        Row: {
+          id: string
+          recipe_id: string
+          week_date: string
+          day_of_week: number | null
+          servings: number
+          is_completed: boolean
+          order_index: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          week_date: string
+          day_of_week?: number | null
+          servings?: number
+          is_completed?: boolean
+          order_index?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          week_date?: string
+          day_of_week?: number | null
+          servings?: number
+          is_completed?: boolean
+          order_index?: number
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -346,6 +378,10 @@ export type PdfImportJob = Database['public']['Tables']['pdf_import_jobs']['Row'
 export type PdfImportJobInsert = Database['public']['Tables']['pdf_import_jobs']['Insert']
 export type PdfImportJobUpdate = Database['public']['Tables']['pdf_import_jobs']['Update']
 
+export type WeeklyMenuItem = Database['public']['Tables']['weekly_menu_items']['Row']
+export type WeeklyMenuItemInsert = Database['public']['Tables']['weekly_menu_items']['Insert']
+export type WeeklyMenuItemUpdate = Database['public']['Tables']['weekly_menu_items']['Update']
+
 // Extended types met relaties
 export type CategoryWithType = Category & {
   category_type: CategoryType
@@ -362,5 +398,12 @@ export type CategoriesByType = {
   [typeSlug: string]: {
     type: CategoryType
     categories: Category[]
+  }
+}
+
+// Weekly menu item with full recipe data
+export type WeeklyMenuItemWithRecipe = WeeklyMenuItem & {
+  recipe: Recipe & {
+    parsed_ingredients: ParsedIngredient[]
   }
 }

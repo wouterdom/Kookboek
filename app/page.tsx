@@ -2,23 +2,26 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Upload, Heart, Filter, ChevronDown } from "lucide-react"
+import { Search, Upload, Heart, Filter, ChevronDown, Bookmark } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 import { ImportDialog } from "@/components/import-dialog"
 import { PdfImportButton } from "@/components/pdf-import-button"
 import { PdfImportProgress } from "@/components/pdf-import-progress"
 import { CategoryTypeManagementModal } from "@/components/category-type-management-modal"
 import { CategoryLabelManagementModal } from "@/components/category-label-management-modal"
+import { Header } from "@/components/header"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { Recipe, CategoriesByType, CategoryType } from "@/types/supabase"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
+import { useWeekMenu } from "@/contexts/weekmenu-context"
 
 export default function HomePage() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([]) // Store all fetched recipes
   const [recipes, setRecipes] = useState<Recipe[]>([]) // Display recipes (paginated)
   const [searchQuery, setSearchQuery] = useState("")
   const [showFavorites, setShowFavorites] = useState(false)
+  const [showWeekmenu, setShowWeekmenu] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -37,6 +40,7 @@ export default function HomePage() {
 
   const supabase = createClient()
   const router = useRouter()
+  const { bookmarkedRecipeIds } = useWeekMenu()
 
   // Fetch all recipes from Supabase once
   const loadAllRecipes = useCallback(async () => {
@@ -99,6 +103,11 @@ export default function HomePage() {
       filtered = filtered.filter(recipe => recipe.is_favorite)
     }
 
+    // Apply weekmenu filter
+    if (showWeekmenu) {
+      filtered = filtered.filter(recipe => bookmarkedRecipeIds.has(recipe.id))
+    }
+
     // Filter by selected categories
     if (selectedCategories.size > 0) {
       filtered = filtered.filter(recipe => {
@@ -108,7 +117,7 @@ export default function HomePage() {
     }
 
     return filtered
-  }, [allRecipes, searchQuery, showFavorites, selectedCategories])
+  }, [allRecipes, searchQuery, showFavorites, showWeekmenu, selectedCategories, bookmarkedRecipeIds])
 
   // Apply pagination to filtered recipes
   useEffect(() => {
@@ -209,34 +218,28 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <h1 className="font-[Montserrat] text-xl sm:text-2xl font-bold">Recepten</h1>
-            <PdfImportProgress />
-          </div>
-          <div className="flex items-center gap-2">
-            <PdfImportButton />
-            <button
-              onClick={() => router.push('/recipes/new')}
-              className="btn btn-sm flex items-center gap-2 text-xs bg-blue-600 text-white hover:bg-blue-700 border-blue-600 transition-colors"
-              aria-label="Handmatig Toevoegen"
-            >
-              <span>+</span>
-              <span className="hidden sm:inline">Handmatig Toevoegen</span>
-            </button>
-            <button
-              onClick={() => setIsImportDialogOpen(true)}
-              className="btn btn-primary btn-sm sm:btn-md flex items-center gap-1.5 sm:gap-2"
-              aria-label="Importeer Recept"
-            >
-              <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden sm:inline">Importeer Recept</span>
-              <span className="sm:hidden">Importeer</span>
-            </button>
-          </div>
+      <Header>
+        <PdfImportProgress />
+        <PdfImportButton />
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={() => router.push('/recipes/new')}
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            aria-label="Handmatig Toevoegen"
+            title="Handmatig Toevoegen"
+          >
+            <span className="text-xl leading-none">+</span>
+          </button>
+          <button
+            onClick={() => setIsImportDialogOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
+            aria-label="Importeer Recept"
+            title="Importeer"
+          >
+            <Upload className="h-5 w-5" />
+          </button>
         </div>
-      </header>
+      </Header>
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
@@ -255,17 +258,32 @@ export default function HomePage() {
 
           {/* Filter Bar - Aparte dropdowns per categorietype */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Favorites Toggle */}
+            {/* Favorites Toggle - Icon Only */}
             <button
               onClick={() => setShowFavorites(!showFavorites)}
-              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all ${
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-full border transition-all ${
                 showFavorites
-                  ? "border-primary bg-primary font-medium text-primary-foreground"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-white hover:border-primary hover:bg-primary/5"
               }`}
+              title="Favorieten"
+              aria-label="Filter op favorieten"
             >
-              <Heart className="h-4 w-4" />
-              Favorieten
+              <Heart className={`h-4 w-4 ${showFavorites ? 'fill-current' : ''}`} />
+            </button>
+
+            {/* Weekmenu Toggle - Icon Only */}
+            <button
+              onClick={() => setShowWeekmenu(!showWeekmenu)}
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-full border transition-all ${
+                showWeekmenu
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-white hover:border-primary hover:bg-primary/5"
+              }`}
+              title="Weekmenu"
+              aria-label="Filter op weekmenu"
+            >
+              <Bookmark className={`h-4 w-4 ${showWeekmenu ? 'fill-current' : ''}`} />
             </button>
 
             {/* Dropdown per categorietype */}
@@ -278,19 +296,19 @@ export default function HomePage() {
                 <div key={typeSlug} className="relative">
                   <button
                     onClick={() => setOpenDropdown(openDropdown === typeSlug ? null : typeSlug)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs sm:text-sm transition-all min-h-[40px] ${
                       selectedInThisType > 0
                         ? "border-primary bg-primary/10 font-medium text-primary"
                         : "border-border bg-white hover:border-primary hover:bg-primary/5"
                     }`}
                   >
-                    {typeData.type.name}
+                    <span className="truncate max-w-[80px] sm:max-w-none">{typeData.type.name}</span>
                     {selectedInThisType > 0 && (
-                      <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                      <span className="flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground flex-shrink-0">
                         {selectedInThisType}
                       </span>
                     )}
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                   </button>
 
                   {/* Dropdown Content */}
@@ -342,12 +360,14 @@ export default function HomePage() {
               )
             })}
 
-            {/* Manage Categories Button */}
+            {/* Manage Categories Button - Compact */}
             <button
               onClick={() => setIsCategoryTypeModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-dashed border-border px-4 py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-dashed border-border bg-white text-muted-foreground hover:border-primary hover:text-primary transition-all"
+              title="Categorie toevoegen"
+              aria-label="Categorie toevoegen"
             >
-              + Categorie toevoegen
+              <span className="text-lg font-semibold">+</span>
             </button>
 
             {/* Clear all filters */}
@@ -391,7 +411,7 @@ export default function HomePage() {
         ) : recipes.length === 0 ? (
           <div className="py-12 text-center text-[oklch(var(--muted-foreground))]">
             <p className="text-lg">
-              {searchQuery || showFavorites || selectedCategories.size > 0
+              {searchQuery || showFavorites || showWeekmenu || selectedCategories.size > 0
                 ? 'Geen recepten gevonden met deze filters'
                 : 'Nog geen recepten toegevoegd. Klik op "Importeer Recept" om te beginnen!'}
             </p>

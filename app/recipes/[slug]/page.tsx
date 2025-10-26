@@ -31,7 +31,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import { CategoryManagementModal } from "@/components/CategoryManagementModal"
 import { ImageUploadModal } from "@/components/ImageUploadModal"
 import { ConfirmModal } from "@/components/modal"
-import { getCategoryStyle, CATEGORY_LABEL_COLOR } from "@/lib/colors"
+import { getCategoryStyle, DEFAULT_CATEGORY_COLOR } from "@/lib/colors"
 import { ChefTip } from "@/components/chef-tip"
 import { RecipeCategorySelector } from "@/components/recipe-category-selector"
 import { InlineEditButton } from "@/components/inline-edit-button"
@@ -51,7 +51,6 @@ export default function RecipeDetailPage({
   const [baseServings, setBaseServings] = useState<number | null>(null)
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set())
   const [isFavorite, setIsFavorite] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
   const [notes, setNotes] = useState('')
   const [isSavingNotes, setIsSavingNotes] = useState(false)
   const [slug, setSlug] = useState<string>('')
@@ -81,19 +80,27 @@ export default function RecipeDetailPage({
   const [tempSourceUrl, setTempSourceUrl] = useState<string>('')
   const [isSavingSource, setIsSavingSource] = useState(false)
 
-  // Edit mode states
-  const [editTitle, setEditTitle] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [editPrepTime, setEditPrepTime] = useState<number | null>(null)
-  const [editCookTime, setEditCookTime] = useState<number | null>(null)
-  const [editServings, setEditServings] = useState<number | null>(null)
-  const [editDifficulty, setEditDifficulty] = useState<string | null>(null)
-  const [editInstructions, setEditInstructions] = useState('')
-  const [editSourceName, setEditSourceName] = useState('')
-  const [editSourceUrl, setEditSourceUrl] = useState('')
-  const [editIngredients, setEditIngredients] = useState<ParsedIngredient[]>([])
-  const [editImageUrl, setEditImageUrl] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
+  // Inline edit states for title & description
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [tempTitle, setTempTitle] = useState('')
+  const [tempDescription, setTempDescription] = useState('')
+  const [isSavingTitle, setIsSavingTitle] = useState(false)
+
+  // Inline edit states for ingredients
+  const [isEditingIngredients, setIsEditingIngredients] = useState(false)
+  const [tempIngredients, setTempIngredients] = useState<ParsedIngredient[]>([])
+  const [isSavingIngredients, setIsSavingIngredients] = useState(false)
+
+  // Inline edit states for instructions
+  const [isEditingInstructions, setIsEditingInstructions] = useState(false)
+  const [tempInstructions, setTempInstructions] = useState('')
+  const [isSavingInstructions, setIsSavingInstructions] = useState(false)
+
+  // Inline edit states for notes
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
+  const [tempNotes, setTempNotes] = useState('')
+  const [isSavingNotesIndividual, setIsSavingNotesIndividual] = useState(false)
+
 
   // Unwrap params on mount
   useEffect(() => {
@@ -132,18 +139,6 @@ export default function RecipeDetailPage({
           setRecipeCategoryIds(categoriesData.map((rc: any) => rc.category_id))
         }
 
-        // Initialize edit states
-        setEditTitle(recipe.title)
-        setEditDescription(recipe.description || '')
-        setEditPrepTime(recipe.prep_time)
-        setEditCookTime(recipe.cook_time)
-        setEditServings(recipe.servings_default)
-        setEditDifficulty(recipe.difficulty)
-        setEditInstructions(recipe.content_markdown || '')
-        setEditSourceName(recipe.source_name || '')
-        setEditSourceUrl(recipe.source_url || '')
-        setEditImageUrl(recipe.image_url || '')
-
         // Fetch ingredients
         const { data: ingredientsData, error: ingredientsError } = await supabase
           .from('parsed_ingredients')
@@ -153,7 +148,6 @@ export default function RecipeDetailPage({
 
         if (!ingredientsError && ingredientsData) {
           setIngredients(ingredientsData)
-          setEditIngredients(ingredientsData)
         }
       }
     } catch (error) {
@@ -185,27 +179,6 @@ export default function RecipeDetailPage({
     loadCategories()
   }, [loadCategories])
 
-  // Auto-save notes after 2 seconds of inactivity
-  useEffect(() => {
-    if (!recipe || !isEditMode) return
-
-    const timer = setTimeout(async () => {
-      if (notes !== recipe.notes) {
-        setIsSavingNotes(true)
-        await supabase
-          .from('recipes')
-          // @ts-expect-error - Dynamic update
-          .update({
-            notes,
-            notes_updated_at: new Date().toISOString()
-          })
-          .eq('id', (recipe as any).id)
-        setIsSavingNotes(false)
-      }
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  }, [notes, recipe, supabase, isEditMode])
 
   const toggleFavorite = async () => {
     if (!recipe) return
@@ -268,7 +241,7 @@ export default function RecipeDetailPage({
       const response = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategoryName.trim(), color: CATEGORY_LABEL_COLOR.value })
+        body: JSON.stringify({ name: newCategoryName.trim(), color: DEFAULT_CATEGORY_COLOR })
       })
 
       if (response.ok) {
@@ -332,141 +305,29 @@ export default function RecipeDetailPage({
   const handleImageUpload = async (imageUrl: string) => {
     if (!recipe) return
 
-    setEditImageUrl(imageUrl)
-
-    // If not in edit mode, save directly
-    if (!isEditMode) {
-      try {
-        const response = await fetch(`/api/recipes/${slug}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image_url: imageUrl,
-          })
-        })
-
-        if (response.ok) {
-          await loadRecipe()
-          toast.success('Foto opgeslagen')
-        } else {
-          toast.error('Fout bij opslaan van foto')
-        }
-      } catch (error) {
-        console.error('Error saving image:', error)
-        toast.error('Fout bij opslaan van foto')
-      }
-    }
-  }
-
-  // Add ingredient
-  const addIngredient = () => {
-    const newIngredient: ParsedIngredient = {
-      id: `temp-${Date.now()}`,
-      recipe_id: recipe?.id || '',
-      ingredient_name_nl: '',
-      amount: null,
-      unit: null,
-      amount_display: '',
-      scalable: true,
-      section: null,
-      order_index: editIngredients.length,
-      created_at: new Date().toISOString()
-    }
-    setEditIngredients([...editIngredients, newIngredient])
-  }
-
-  // Remove ingredient
-  const removeIngredient = (index: number) => {
-    const updated = editIngredients.filter((_, i) => i !== index)
-    setEditIngredients(updated)
-  }
-
-  // Update ingredient
-  const updateIngredient = (index: number, field: keyof ParsedIngredient, value: any) => {
-    const updated = [...editIngredients]
-    updated[index] = { ...updated[index], [field]: value }
-
-    // Update amount_display when amount or unit changes
-    if (field === 'amount' || field === 'unit') {
-      const ing = updated[index]
-      if (ing.amount && ing.unit) {
-        ing.amount_display = `${ing.amount} ${ing.unit}`
-      } else if (ing.amount) {
-        ing.amount_display = `${ing.amount}`
-      } else {
-        ing.amount_display = ''
-      }
-    }
-
-    setEditIngredients(updated)
-  }
-
-  // Save all changes
-  const saveChanges = async () => {
-    if (!recipe) return
-
-    setIsSaving(true)
+    // Always save directly
     try {
       const response = await fetch(`/api/recipes/${slug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: editTitle,
-          description: editDescription,
-          prep_time: editPrepTime,
-          cook_time: editCookTime,
-          servings_default: editServings,
-          difficulty: editDifficulty,
-          content_markdown: editInstructions,
-          source_name: editSourceName,
-          source_url: editSourceUrl,
-          image_url: editImageUrl,
-          ingredients: editIngredients.map((ing, index) => ({
-            ingredient_name_nl: ing.ingredient_name_nl,
-            amount: ing.amount,
-            unit: ing.unit,
-            amount_display: ing.amount_display,
-            scalable: ing.scalable,
-            section: ing.section,
-            order_index: index
-          }))
+          image_url: imageUrl,
         })
       })
 
       if (response.ok) {
-        // Reload recipe to show updated data
         await loadRecipe()
-        setIsEditMode(false)
-        toast.success('Recept succesvol opgeslagen')
+        toast.success('Foto opgeslagen')
       } else {
-        toast.error('Fout bij opslaan van recept')
+        toast.error('Fout bij opslaan van foto')
       }
     } catch (error) {
-      console.error('Error saving recipe:', error)
-      toast.error('Fout bij opslaan van recept')
-    } finally {
-      setIsSaving(false)
+      console.error('Error saving image:', error)
+      toast.error('Fout bij opslaan van foto')
     }
   }
 
-  // Cancel edit mode
-  const cancelEdit = () => {
-    if (!recipe) return
 
-    // Reset all edit states to current recipe data
-    setEditTitle(recipe.title)
-    setEditDescription(recipe.description || '')
-    setEditPrepTime(recipe.prep_time)
-    setEditCookTime(recipe.cook_time)
-    setEditServings(recipe.servings_default)
-    setEditDifficulty(recipe.difficulty)
-    setEditInstructions(recipe.content_markdown || '')
-    setEditSourceName(recipe.source_name || '')
-    setEditSourceUrl(recipe.source_url || '')
-    setEditImageUrl(recipe.image_url || '')
-    setEditIngredients([...ingredients])
-    setIsEditMode(false)
-  }
 
   const handleDeleteRecipe = async () => {
     if (!recipe) return
@@ -585,6 +446,203 @@ export default function RecipeDetailPage({
     setTempSourceUrl('')
   }
 
+  // Inline title & description editing functions
+  const startEditingTitle = () => {
+    if (!recipe) return
+    setTempTitle(recipe.title)
+    setTempDescription(recipe.description || '')
+    setIsEditingTitle(true)
+  }
+
+  const saveTitle = async () => {
+    if (!recipe) return
+
+    setIsSavingTitle(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: tempTitle,
+          description: tempDescription || null,
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingTitle(false)
+        toast.success('Titel en beschrijving opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van titel en beschrijving')
+      }
+    } catch (error) {
+      console.error('Error saving title:', error)
+      toast.error('Fout bij opslaan van titel en beschrijving')
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
+
+  const cancelTitleEdit = () => {
+    setIsEditingTitle(false)
+    setTempTitle('')
+    setTempDescription('')
+  }
+
+  // Inline ingredients editing functions
+  const startEditingIngredients = () => {
+    if (!recipe) return
+    setTempIngredients([...ingredients])
+    setIsEditingIngredients(true)
+  }
+
+  const saveIngredients = async () => {
+    if (!recipe) return
+
+    setIsSavingIngredients(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredients: tempIngredients.map((ing, index) => ({
+            ingredient_name_nl: ing.ingredient_name_nl,
+            amount: ing.amount,
+            unit: ing.unit,
+            amount_display: ing.amount_display,
+            scalable: ing.scalable,
+            section: ing.section,
+            order_index: index
+          }))
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingIngredients(false)
+        toast.success('Ingrediënten opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van ingrediënten')
+      }
+    } catch (error) {
+      console.error('Error saving ingredients:', error)
+      toast.error('Fout bij opslaan van ingrediënten')
+    } finally {
+      setIsSavingIngredients(false)
+    }
+  }
+
+  const cancelIngredientsEdit = () => {
+    setIsEditingIngredients(false)
+    setTempIngredients([])
+  }
+
+  const addTempIngredient = () => {
+    const newIngredient: ParsedIngredient = {
+      id: `new-${Date.now()}`,
+      recipe_id: recipe?.id || '',
+      ingredient_name_nl: '',
+      amount: null,
+      unit: null,
+      amount_display: '',
+      scalable: true,
+      section: null,
+      order_index: tempIngredients.length
+    }
+    setTempIngredients([...tempIngredients, newIngredient])
+  }
+
+  const updateTempIngredient = (index: number, field: keyof ParsedIngredient, value: any) => {
+    const updated = [...tempIngredients]
+    updated[index] = { ...updated[index], [field]: value }
+    setTempIngredients(updated)
+  }
+
+  const removeTempIngredient = (index: number) => {
+    const updated = tempIngredients.filter((_, i) => i !== index)
+    setTempIngredients(updated)
+  }
+
+  // Inline instructions editing functions
+  const startEditingInstructions = () => {
+    if (!recipe) return
+    setTempInstructions(recipe.content_markdown || '')
+    setIsEditingInstructions(true)
+  }
+
+  const saveInstructions = async () => {
+    if (!recipe) return
+
+    setIsSavingInstructions(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content_markdown: tempInstructions,
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingInstructions(false)
+        toast.success('Bereidingswijze opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van bereidingswijze')
+      }
+    } catch (error) {
+      console.error('Error saving instructions:', error)
+      toast.error('Fout bij opslaan van bereidingswijze')
+    } finally {
+      setIsSavingInstructions(false)
+    }
+  }
+
+  const cancelInstructionsEdit = () => {
+    setIsEditingInstructions(false)
+    setTempInstructions('')
+  }
+
+  // Inline notes editing functions
+  const startEditingNotes = () => {
+    if (!recipe) return
+    setTempNotes(recipe.notes || '')
+    setIsEditingNotes(true)
+  }
+
+  const saveNotes = async () => {
+    if (!recipe) return
+
+    setIsSavingNotesIndividual(true)
+    try {
+      const response = await fetch(`/api/recipes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: tempNotes,
+        })
+      })
+
+      if (response.ok) {
+        await loadRecipe()
+        setIsEditingNotes(false)
+        toast.success('Notities opgeslagen')
+      } else {
+        toast.error('Fout bij opslaan van notities')
+      }
+    } catch (error) {
+      console.error('Error saving notes:', error)
+      toast.error('Fout bij opslaan van notities')
+    } finally {
+      setIsSavingNotesIndividual(false)
+    }
+  }
+
+  const cancelNotesEdit = () => {
+    setIsEditingNotes(false)
+    setTempNotes('')
+  }
+
   const getDifficultyColor = (difficulty: string | null) => {
     switch(difficulty?.toLowerCase()) {
       case 'makkelijk': return 'badge-primary'
@@ -681,8 +739,7 @@ export default function RecipeDetailPage({
           </div>
 
           {/* Center: Cooking & Print buttons */}
-          {!isEditMode && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <button
                 onClick={() => router.push(`/recipes/${slug}/cooking`)}
                 className="btn btn-outline btn-sm flex items-center gap-2 text-primary hover:bg-primary hover:text-primary-foreground"
@@ -698,45 +755,16 @@ export default function RecipeDetailPage({
                 <span className="hidden sm:inline">Print</span>
               </button>
             </div>
-          )}
 
-          {/* Right: Edit & Delete buttons OR Save & Cancel */}
+          {/* Right: Delete button */}
           <div className="flex flex-1 items-center justify-end gap-2">
-            {isEditMode ? (
-              <>
-                <button
-                  onClick={saveChanges}
-                  disabled={isSaving}
-                  className="btn btn-primary btn-sm flex items-center gap-2"
-                >
-                  {isSaving ? 'Opslaan...' : 'Opslaan'}
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  disabled={isSaving}
-                  className="btn btn-outline btn-sm"
-                >
-                  Annuleren
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setIsEditMode(true)}
-                  className="btn btn-primary btn-sm flex items-center gap-2"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Bewerk</span>
-                </button>
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="btn btn-outline btn-sm flex items-center gap-2 text-red-600 hover:bg-red-50 hover:border-red-300"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Verwijder</span>
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="btn btn-outline btn-sm flex items-center gap-2 text-red-600 hover:bg-red-50 hover:border-red-300"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Verwijder</span>
+            </button>
           </div>
         </div>
       </header>
@@ -748,7 +776,7 @@ export default function RecipeDetailPage({
           <div className="relative h-96 w-full">
             <Image
               src={
-                (isEditMode ? editImageUrl : recipe.image_url) ||
+                recipe.image_url ||
                 "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop"
               }
               alt={recipe.title}
@@ -770,34 +798,54 @@ export default function RecipeDetailPage({
           <div className="p-4 sm:p-8">
             {/* Title and Description */}
             <div className="mb-6">
-              {isEditMode ? (
-                <>
+              {isEditingTitle ? (
+                <div className="space-y-3">
                   <input
                     type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="mb-3 w-full font-serif text-2xl sm:text-4xl font-bold border-b-2 border-gray-300 focus:border-primary outline-none bg-transparent break-words"
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    className="w-full font-serif text-xl sm:text-4xl font-bold border-b-2 border-gray-300 focus:border-primary outline-none bg-transparent px-2 py-1"
                     placeholder="Recept titel"
                   />
                   <textarea
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full text-lg text-muted-foreground border border-gray-300 rounded p-2 focus:border-primary outline-none"
+                    value={tempDescription}
+                    onChange={(e) => setTempDescription(e.target.value)}
+                    className="w-full text-base sm:text-lg text-muted-foreground border border-gray-300 rounded-lg p-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none"
                     placeholder="Beschrijving (optioneel)"
-                    rows={2}
+                    rows={3}
                   />
-                </>
+                  <div className="flex justify-end">
+                    <InlineEditButton
+                      isEditing={isEditingTitle}
+                      onEdit={startEditingTitle}
+                      onSave={saveTitle}
+                      onCancel={cancelTitleEdit}
+                      isSaving={isSavingTitle}
+                    />
+                  </div>
+                </div>
               ) : (
-                <>
-                  <h1 className="mb-3 font-serif text-2xl sm:text-4xl font-bold break-words">
-                    {recipe.title}
-                  </h1>
-                  {recipe.description && (
-                    <p className="text-base sm:text-lg text-muted-foreground break-words">
-                      {recipe.description}
-                    </p>
-                  )}
-                </>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h1 className="mb-3 font-serif text-2xl sm:text-4xl font-bold break-words">
+                      {recipe.title}
+                    </h1>
+                    {recipe.description && (
+                      <p className="text-base sm:text-lg text-muted-foreground break-words">
+                        {recipe.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <InlineEditButton
+                      isEditing={isEditingTitle}
+                      onEdit={startEditingTitle}
+                      onSave={saveTitle}
+                      onCancel={cancelTitleEdit}
+                      isSaving={isSavingTitle}
+                    />
+                  </div>
+                </div>
               )}
             </div>
 
@@ -813,11 +861,10 @@ export default function RecipeDetailPage({
               )}
             </div>
 
-            {/* Metadata Badges - Only show when NOT in edit mode */}
-            {!isEditMode && (
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">Recept details:</h3>
+            {/* Metadata Badges */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Recept details:</h3>
                   {!isEditingMetadata && (
                     <InlineEditButton
                       isEditing={false}
@@ -935,11 +982,9 @@ export default function RecipeDetailPage({
                 )}
               </div>
             </div>
-            )}
 
             {/* Source Section - Separate from metadata */}
-            {!isEditMode && (
-              <div className="mb-8">
+            <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-muted-foreground">Bron:</h3>
                   {!isEditingSource && (
@@ -1012,7 +1057,6 @@ export default function RecipeDetailPage({
                   </div>
                 )}
               </div>
-            )}
 
             <div className="my-6 h-px bg-border" />
 
@@ -1057,40 +1101,49 @@ export default function RecipeDetailPage({
                   <h2 className="font-serif text-2xl font-semibold">
                     Ingrediënten
                   </h2>
-                  {isEditMode && (
-                    <button
-                      onClick={addIngredient}
-                      className="btn btn-sm btn-primary flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Toevoegen
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isEditingIngredients && (
+                      <button
+                        onClick={addTempIngredient}
+                        className="btn btn-sm btn-primary flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Toevoegen
+                      </button>
+                    )}
+                    <InlineEditButton
+                      isEditing={isEditingIngredients}
+                      onEdit={startEditingIngredients}
+                      onSave={saveIngredients}
+                      onCancel={cancelIngredientsEdit}
+                      isSaving={isSavingIngredients}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  {isEditMode ? (
+                  {isEditingIngredients ? (
                     <>
-                      {editIngredients.length > 0 ? editIngredients.map((ingredient, index) => (
+                      {tempIngredients.length > 0 ? tempIngredients.map((ingredient, index) => (
                         <div key={ingredient.id || index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 rounded-lg">
                           <div className="flex gap-2 flex-1">
                             <input
                               type="number"
                               value={ingredient.amount || ''}
-                              onChange={(e) => updateIngredient(index, 'amount', e.target.value ? parseFloat(e.target.value) : null)}
+                              onChange={(e) => updateTempIngredient(index, 'amount', e.target.value ? parseFloat(e.target.value) : null)}
                               className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:border-primary outline-none"
                               placeholder="Aantal"
                             />
                             <input
                               type="text"
                               value={ingredient.unit || ''}
-                              onChange={(e) => updateIngredient(index, 'unit', e.target.value)}
+                              onChange={(e) => updateTempIngredient(index, 'unit', e.target.value)}
                               className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:border-primary outline-none"
                               placeholder="Eenheid"
                             />
                             <input
                               type="text"
                               value={ingredient.ingredient_name_nl}
-                              onChange={(e) => updateIngredient(index, 'ingredient_name_nl', e.target.value)}
+                              onChange={(e) => updateTempIngredient(index, 'ingredient_name_nl', e.target.value)}
                               className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:border-primary outline-none"
                               placeholder="Ingrediënt"
                             />
@@ -1100,13 +1153,13 @@ export default function RecipeDetailPage({
                               <input
                                 type="checkbox"
                                 checked={ingredient.scalable}
-                                onChange={(e) => updateIngredient(index, 'scalable', e.target.checked)}
+                                onChange={(e) => updateTempIngredient(index, 'scalable', e.target.checked)}
                                 className="rounded"
                               />
                               <span className="text-xs text-gray-600">Schaalbaar</span>
                             </label>
                             <button
-                              onClick={() => removeIngredient(index)}
+                              onClick={() => removeTempIngredient(index)}
                               className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                               title="Verwijder ingrediënt"
                             >
@@ -1157,7 +1210,7 @@ export default function RecipeDetailPage({
                 </div>
 
                 {/* Chef Tip - Notities */}
-                {!isEditMode && recipe.notes && (
+                {recipe.notes && (
                   <ChefTip content={recipe.notes} />
                 )}
               </div>
@@ -1166,18 +1219,27 @@ export default function RecipeDetailPage({
             {/* Tab Content: Instructions */}
             {activeTab === "instructions" && (
               <div>
-                <h2 className="mb-6 font-serif text-2xl font-semibold">
-                  Bereidingswijze
-                </h2>
-                {isEditMode ? (
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-serif text-2xl font-semibold">
+                    Bereidingswijze
+                  </h2>
+                  <InlineEditButton
+                    isEditing={isEditingInstructions}
+                    onEdit={startEditingInstructions}
+                    onSave={saveInstructions}
+                    onCancel={cancelInstructionsEdit}
+                    isSaving={isSavingInstructions}
+                  />
+                </div>
+                {isEditingInstructions ? (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Instructies (Markdown format)
                       </label>
                       <textarea
-                        value={editInstructions}
-                        onChange={(e) => setEditInstructions(e.target.value)}
+                        value={tempInstructions}
+                        onChange={(e) => setTempInstructions(e.target.value)}
                         className="w-full min-h-[400px] p-4 text-sm border border-gray-300 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none font-mono"
                         placeholder="Voer de bereidingsstappen in. Gebruik nummering (1. 2. 3.) of bullet points (- )&#10;&#10;Voorbeeld:&#10;1. Verwarm de oven voor op 180°C.&#10;2. Meng de bloem met het zout.&#10;3. Voeg de eieren toe en meng goed."
                       />
@@ -1185,11 +1247,11 @@ export default function RecipeDetailPage({
                         Tip: Gebruik Markdown formatting. Bijvoorbeeld: **vet**, *cursief*, nummering (1. 2. 3.) of bullets (- )
                       </p>
                     </div>
-                    {editInstructions && (
+                    {tempInstructions && (
                       <div>
                         <h3 className="text-sm font-medium text-gray-700 mb-2">Preview:</h3>
                         <div className="space-y-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                          {parseInstructions(editInstructions).map((step, index) => (
+                          {parseInstructions(tempInstructions).map((step, index) => (
                             <div key={index} className="flex gap-4">
                               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
                                 {index + 1}
@@ -1225,7 +1287,7 @@ export default function RecipeDetailPage({
                 )}
 
                 {/* Chef Tip - Notities */}
-                {!isEditMode && recipe.notes && (
+                {recipe.notes && (
                   <ChefTip content={recipe.notes} />
                 )}
               </div>
@@ -1234,23 +1296,26 @@ export default function RecipeDetailPage({
             {/* Tab Content: Notes */}
             {activeTab === "notes" && (
               <div>
-                <h2 className="mb-6 font-serif text-2xl font-semibold">
-                  Notities
-                </h2>
-                {isEditMode ? (
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-serif text-2xl font-semibold">
+                    Notities
+                  </h2>
+                  <InlineEditButton
+                    isEditing={isEditingNotes}
+                    onEdit={startEditingNotes}
+                    onSave={saveNotes}
+                    onCancel={cancelNotesEdit}
+                    isSaving={isSavingNotesIndividual}
+                  />
+                </div>
+                {isEditingNotes ? (
                   <div>
                     <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                      value={tempNotes}
+                      onChange={(e) => setTempNotes(e.target.value)}
                       className="w-full min-h-[300px] p-4 text-sm border border-gray-300 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                       placeholder="Voeg persoonlijke notities toe over dit recept..."
                     />
-                    {isSavingNotes && (
-                      <p className="mt-2 text-xs text-gray-500">Opslaan...</p>
-                    )}
-                    <p className="mt-2 text-xs text-gray-500">
-                      Notities worden automatisch opgeslagen
-                    </p>
                   </div>
                 ) : (
                   <>
@@ -1300,7 +1365,7 @@ export default function RecipeDetailPage({
           isOpen={showImageUploadModal}
           onClose={() => setShowImageUploadModal(false)}
           onUpload={handleImageUpload}
-          currentImageUrl={editImageUrl || recipe?.image_url || undefined}
+          currentImageUrl={recipe?.image_url || undefined}
           recipeSlug={slug}
           recipeTitle={recipe?.title}
           recipeDescription={recipe?.description ?? undefined}

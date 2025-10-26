@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { WeekMenuProvider } from "@/contexts/weekmenu-context";
+import { GroceryCountProvider } from "@/components/grocery-count-provider";
+import { CategoriesProvider } from "@/contexts/categories-context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -72,7 +75,13 @@ export default function RootLayout({
   return (
     <html lang="nl" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="min-h-screen antialiased" suppressHydrationWarning>
-        {children}
+        <CategoriesProvider>
+          <GroceryCountProvider>
+            <WeekMenuProvider>
+              {children}
+            </WeekMenuProvider>
+          </GroceryCountProvider>
+        </CategoriesProvider>
         <Toaster />
       </body>
     </html>

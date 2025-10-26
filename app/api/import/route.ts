@@ -163,7 +163,8 @@ Extract recipe information from the content. Return ONLY valid JSON matching thi
     {
       "amount": number or null,
       "unit": "el" | "tl" | "ml" | "l" | "g" | "kg" | etc or null,
-      "name": "ingredient name in Dutch"
+      "name": "ingredient name in Dutch",
+      "section": "section name or null (e.g., 'Voor de saus', 'Voor het hoofdgerecht', 'Voor de vulling')"
     }
   ],
   "instructions": "Step-by-step instructions",
@@ -212,15 +213,34 @@ Other important rules:
 - SERVINGS: Extract if mentioned, otherwise use 4
 - DIFFICULTY: Return in English (easy/medium/hard)
 - INGREDIENT AMOUNTS: Extract exact amounts, use null if not specified
+- INGREDIENT SECTIONS: If ingredients are grouped (e.g., "Voor de saus:", "Voor de vulling:"), extract the section name. Otherwise use null.
 
-Example output:
+Example output (WITHOUT sections):
 {
   "title": "Zoete aardappel friet",
   "gang": "Bijgerecht",
   "uitgever": "Leuke Recepten",
   "servings": 4,
-  "ingredients": [...],
+  "ingredients": [
+    { "amount": 500, "unit": "g", "name": "zoete aardappelen", "section": null },
+    { "amount": 2, "unit": "el", "name": "olijfolie", "section": null }
+  ],
   "instructions": "1. Verwarm oven\n2. Snijd friet\n3. Bak 30 min"
+}
+
+Example output (WITH sections):
+{
+  "title": "Carbonara",
+  "gang": "Hoofdgerecht",
+  "uitgever": "Italiaanse recepten",
+  "servings": 4,
+  "ingredients": [
+    { "amount": 400, "unit": "g", "name": "spaghetti", "section": null },
+    { "amount": 4, "unit": null, "name": "eieren", "section": "Voor de saus" },
+    { "amount": 100, "unit": "g", "name": "Pecorino Romano", "section": "Voor de saus" },
+    { "amount": 150, "unit": "g", "name": "guanciale", "section": "Voor de saus" }
+  ],
+  "instructions": "1. Kook pasta\n2. Maak saus\n3. Meng samen"
 }
 `
 
@@ -619,6 +639,7 @@ export async function POST(request: NextRequest) {
         .map((ing: any, index: number) => {
           const amount = ing.amount || null
           const unit = ing.unit || null
+          const section = ing.section || null
           let amount_display = ''
 
           if (amount && unit) {
@@ -635,6 +656,7 @@ export async function POST(request: NextRequest) {
             amount,
             unit,
             amount_display,
+            section,
             scalable: amount !== null,
             order_index: index
           }

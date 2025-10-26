@@ -73,3 +73,8 @@ COOLIFY-DEPLOYMENT.md
 wireframes/
 docs/
 CLAUDE.md
+*.wireframe.html
+*.playwright
+
+# Playwright MCP screenshots and artifacts
+.playwright-mcp/

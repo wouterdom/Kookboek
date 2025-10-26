@@ -65,7 +65,10 @@
       "mcp__shadcn__search_items_in_registries",
       "mcp__shadcn__view_items_in_registries",
       "Bash(dir /b \"C:\\Users\\wdom\\Kookboek\\components\\ui\")",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(dir /b \"C:\\Users\\wdom\\Kookboek\\wireframes\\*.html\")",
+      "Bash(dir:*)",
+      "Bash(start index.html)"
     ],
     "deny": [],
     "ask": []

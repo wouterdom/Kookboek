@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Plus, Trash2, Edit2 } from "lucide-react"
+import { X, Plus, Trash2, Edit2, Palette } from "lucide-react"
 import { Category, CategoryType } from "@/types/supabase"
-import { CATEGORY_LABEL_COLOR } from "@/lib/colors"
+import { DEFAULT_CATEGORY_COLOR } from "@/lib/colors"
+import { ColorPicker } from "@/components/ColorPicker"
+import { Modal } from "@/components/modal"
 
 interface CategoryLabelManagementModalProps {
   isOpen: boolean
@@ -21,7 +23,10 @@ export function CategoryLabelManagementModal({
   const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [newLabelName, setNewLabelName] = useState("")
+  const [newLabelColor, setNewLabelColor] = useState(DEFAULT_CATEGORY_COLOR)
   const [editingLabel, setEditingLabel] = useState<Category | null>(null)
+  const [showColorPickerFor, setShowColorPickerFor] = useState<'new' | string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -51,22 +56,23 @@ export function CategoryLabelManagementModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newLabelName.trim(),
-          color: CATEGORY_LABEL_COLOR.value,
+          color: newLabelColor,
           type_id: categoryType.id
         })
       })
 
       if (response.ok) {
         setNewLabelName("")
+        setNewLabelColor(DEFAULT_CATEGORY_COLOR)
         loadCategories()
         onUpdate()
       } else {
         const error = await response.json()
-        alert(error.error || 'Fout bij aanmaken label')
+        setErrorMessage(error.error || 'Fout bij aanmaken label')
       }
     } catch (error) {
       console.error('Error creating label:', error)
-      alert('Fout bij aanmaken label')
+      setErrorMessage('Fout bij aanmaken label')
     } finally {
       setIsLoading(false)
     }
@@ -102,7 +108,8 @@ export function CategoryLabelManagementModal({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: label.name.trim()
+          name: label.name.trim(),
+          color: label.color
         })
       })
 
@@ -111,11 +118,11 @@ export function CategoryLabelManagementModal({
         loadCategories()
         onUpdate()
       } else {
-        alert('Fout bij updaten label')
+        setErrorMessage('Fout bij updaten label')
       }
     } catch (error) {
       console.error('Error updating label:', error)
-      alert('Fout bij updaten label')
+      setErrorMessage('Fout bij updaten label')
     }
   }
 
@@ -141,23 +148,53 @@ export function CategoryLabelManagementModal({
         {/* Add New Label */}
         <div className="mb-6 rounded-lg border border-dashed border-gray-300 p-4">
           <h3 className="mb-3 font-medium">Nieuw Label</h3>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="Label naam"
-              value={newLabelName}
-              onChange={(e) => setNewLabelName(e.target.value)}
-              className="input flex-1"
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateLabel()}
-            />
-            <button
-              onClick={handleCreateLabel}
-              disabled={!newLabelName.trim() || isLoading}
-              className="btn btn-primary btn-sm"
-            >
-              <Plus className="h-4 w-4" />
-              Toevoegen
-            </button>
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Label naam"
+                value={newLabelName}
+                onChange={(e) => setNewLabelName(e.target.value)}
+                className="input flex-1"
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateLabel()}
+              />
+              <button
+                onClick={() => setShowColorPickerFor('new')}
+                className="rounded-lg p-3 border-2 hover:border-gray-400 transition-all"
+                style={{ backgroundColor: newLabelColor }}
+                title="Kies kleur"
+              >
+                <Palette className="h-5 w-5" style={{ color: '#ffffff' }} />
+              </button>
+              <button
+                onClick={handleCreateLabel}
+                disabled={!newLabelName.trim() || isLoading}
+                className="btn btn-primary btn-sm"
+              >
+                <Plus className="h-4 w-4" />
+                Toevoegen
+              </button>
+            </div>
+            {showColorPickerFor === 'new' && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium">Kies een kleur</span>
+                  <button
+                    onClick={() => setShowColorPickerFor(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <ColorPicker
+                  selectedColor={newLabelColor}
+                  onColorSelect={(color) => {
+                    setNewLabelColor(color)
+                    setShowColorPickerFor(null)
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -174,26 +211,56 @@ export function CategoryLabelManagementModal({
                   className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50"
                 >
                   {editingLabel?.id === category.id ? (
-                    <div className="flex flex-1 items-center gap-3">
-                      <input
-                        type="text"
-                        value={editingLabel.name}
-                        onChange={(e) =>
-                          setEditingLabel({ ...editingLabel, name: e.target.value })
-                        }
-                        className="input flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleUpdateLabel(editingLabel)
-                          if (e.key === 'Escape') setEditingLabel(null)
-                        }}
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => handleUpdateLabel(editingLabel)}
-                        className="btn btn-primary btn-sm"
-                      >
-                        Opslaan
-                      </button>
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="text"
+                          value={editingLabel.name}
+                          onChange={(e) =>
+                            setEditingLabel({ ...editingLabel, name: e.target.value })
+                          }
+                          className="input flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateLabel(editingLabel)
+                            if (e.key === 'Escape') setEditingLabel(null)
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => setShowColorPickerFor(category.id)}
+                          className="rounded-lg p-3 border-2 hover:border-gray-400 transition-all"
+                          style={{ backgroundColor: editingLabel.color }}
+                          title="Kies kleur"
+                        >
+                          <Palette className="h-5 w-5" style={{ color: '#ffffff' }} />
+                        </button>
+                        <button
+                          onClick={() => handleUpdateLabel(editingLabel)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Opslaan
+                        </button>
+                      </div>
+                      {showColorPickerFor === category.id && (
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium">Kies een kleur</span>
+                            <button
+                              onClick={() => setShowColorPickerFor(null)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <ColorPicker
+                            selectedColor={editingLabel.color}
+                            onColorSelect={(color) => {
+                              setEditingLabel({ ...editingLabel, color })
+                              setShowColorPickerFor(null)
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -201,8 +268,8 @@ export function CategoryLabelManagementModal({
                         <span
                           className="h-3 w-3 rounded-full flex-shrink-0"
                           style={{
-                            backgroundColor: CATEGORY_LABEL_COLOR.value,
-                            border: `2px solid ${CATEGORY_LABEL_COLOR.borderColor}`
+                            backgroundColor: category.color,
+                            border: `2px solid ${category.color}`
                           }}
                         />
                         <span className="font-medium">{category.name}</span>
@@ -231,6 +298,16 @@ export function CategoryLabelManagementModal({
           )}
         </div>
       </div>
+
+      {/* Error Modal */}
+      {errorMessage && (
+        <Modal
+          isOpen={!!errorMessage}
+          onClose={() => setErrorMessage(null)}
+          message={errorMessage}
+          type="error"
+        />
+      )}
     </div>
   )
 }

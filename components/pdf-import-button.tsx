@@ -71,9 +71,9 @@ export function PdfImportButton() {
         title="Importeer heel kookboek uit PDF"
       >
         {isUploading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
-          <FileText className="h-4 w-4" />
+          <FileText className="h-5 w-5" />
         )}
         <span className="hidden sm:inline">PDF Kookboek</span>
       </button>
