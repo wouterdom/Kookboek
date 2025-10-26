@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Search, BookOpen, PlusCircle, Bookmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useWeekMenu } from '@/contexts/weekmenu-context'
+import { getCurrentWeekMonday, formatDateForDB } from '@/lib/weekmenu-utils'
 import Image from 'next/image'
 
 interface AddToWeekmenuModalProps {
@@ -106,34 +107,31 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
     if (!manualTitle.trim()) return
 
     try {
-      // Get current week Monday
-      const weekDate = new Date()
-      const dayOfWeek = weekDate.getDay()
-      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-      weekDate.setDate(weekDate.getDate() + mondayOffset)
-      weekDate.setHours(0, 0, 0, 0)
+      // Get current week Monday using utility function
+      const monday = getCurrentWeekMonday()
+      const weekDateStr = formatDateForDB(monday)
 
-      const weekDateStr = weekDate.toISOString().split('T')[0]
-
-      const { error } = await supabase
-        .from('weekly_menu_items')
-        .insert({
+      // Use API endpoint instead of direct Supabase insert
+      const response = await fetch('/api/weekmenu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          custom_title: manualTitle.trim(),
           week_date: weekDateStr,
           day_of_week: null,
           servings: 4,
-          custom_title: manualTitle.trim(),
-          is_completed: false,
           order_index: 0
         })
+      })
 
-      if (error) {
-        console.error('Database error:', error)
-        throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('API error:', errorData)
+        throw new Error(errorData.error || 'Failed to add item')
       }
 
-      // Close modal and refresh page to show new item
+      // Close modal - parent component will refresh the list
       onClose()
-      window.location.reload()
     } catch (error) {
       console.error('Error adding manual item:', error)
       alert('Er ging iets mis bij het toevoegen. Probeer het opnieuw.')
@@ -144,11 +142,11 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col">
         {/* Header - Only show for choose view */}
         {view === 'choose' && (
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold">Recept toevoegen aan weekmenu</h2>
+          <div className="flex items-center justify-between p-3 border-b">
+            <h2 className="text-base font-semibold">Recept toevoegen</h2>
             <button
               onClick={onClose}
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -180,20 +178,20 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4">
           {view === 'choose' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
 
               <button
                 onClick={() => setView('select-recipe')}
-                className="w-full flex items-center gap-4 p-6 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
+                className="w-full flex items-center gap-3 p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-primary" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <BookOpen className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold mb-1">Selecteer uit recepten</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="font-semibold text-sm mb-0.5">Selecteer uit recepten</h3>
+                  <p className="text-xs text-muted-foreground">
                     Kies een bestaand recept uit je verzameling. Ingrediënten kunnen automatisch worden toegevoegd aan je boodschappenlijst.
                   </p>
                 </div>
@@ -201,14 +199,14 @@ export function AddToWeekmenuModal({ isOpen, onClose }: AddToWeekmenuModalProps)
 
               <button
                 onClick={() => setView('manual-add')}
-                className="w-full flex items-center gap-4 p-6 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
+                className="w-full flex items-center gap-3 p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <PlusCircle className="h-6 w-6 text-primary" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <PlusCircle className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold mb-1">Handmatig toevoegen</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="font-semibold text-sm mb-0.5">Handmatig toevoegen</h3>
+                  <p className="text-xs text-muted-foreground">
                     Typ gewoon een naam (bijv. "Ballekes met krieken"). Je zal ingrediënten later handmatig moeten toevoegen.
                   </p>
                 </div>

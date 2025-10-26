@@ -13,9 +13,13 @@ export async function DELETE(request: Request) {
 
   let query = supabase.from('grocery_items').delete()
 
-  // Only delete checked items if mode is 'checked'
+  // Add WHERE clause based on mode
   if (mode === 'checked') {
     query = query.eq('is_checked', true)
+  } else {
+    // For 'all' mode, use neq to satisfy WHERE clause requirement
+    // This deletes all records (both true and false)
+    query = query.neq('id', '00000000-0000-0000-0000-000000000000')
   }
 
   const { error } = await query

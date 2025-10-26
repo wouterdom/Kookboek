@@ -55,11 +55,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const supabase = await createClient()
   const body = await request.json()
-  const { recipe_id, week_date, day_of_week, servings, order_index } = body
+  const { recipe_id, custom_title, week_date, day_of_week, servings, order_index } = body
 
-  // Validation
-  if (!recipe_id) {
-    return NextResponse.json({ error: 'recipe_id is required' }, { status: 400 })
+  // Validation - either recipe_id OR custom_title is required
+  if (!recipe_id && !custom_title) {
+    return NextResponse.json({ error: 'Either recipe_id or custom_title is required' }, { status: 400 })
+  }
+
+  if (recipe_id && custom_title) {
+    return NextResponse.json({ error: 'Cannot specify both recipe_id and custom_title' }, { status: 400 })
   }
 
   if (!week_date) {
@@ -80,16 +84,22 @@ export async function POST(request: Request) {
   }
 
   const insertData: {
-    recipe_id: string
+    recipe_id?: string
+    custom_title?: string
     week_date: string
     day_of_week?: number
     servings?: number
     order_index?: number
   } = {
-    recipe_id,
     week_date
   }
 
+  if (recipe_id) {
+    insertData.recipe_id = recipe_id
+  }
+  if (custom_title) {
+    insertData.custom_title = custom_title.trim()
+  }
   if (day_of_week !== null && day_of_week !== undefined) {
     insertData.day_of_week = day_of_week
   }
@@ -129,4 +139,32 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(item, { status: 201 })
+}
+
+// DELETE /api/weekmenu?week=2025-01-20 - Delete all items for a week
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { searchParams } = new URL(request.url)
+  const week = searchParams.get('week')
+
+  if (!week) {
+    return NextResponse.json({ error: 'week parameter is required (format: YYYY-MM-DD)' }, { status: 400 })
+  }
+
+  // Validate date format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+  if (!dateRegex.test(week)) {
+    return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('weekly_menu_items')
+    .delete()
+    .eq('week_date', week)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true, message: 'Weekly menu cleared' })
 }

@@ -140,8 +140,39 @@ export function IngredientSelectionPopup({
     return current !== ingredient.amount_display
   }
 
+  // Helper to update servings in the database if changed
+  const updateServingsIfChanged = async () => {
+    if (servings !== recipe.servings_default) {
+      try {
+        // Get current week Monday
+        const weekDate = new Date()
+        const dayOfWeek = weekDate.getDay()
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+        weekDate.setDate(weekDate.getDate() + mondayOffset)
+        weekDate.setHours(0, 0, 0, 0)
+        const weekDateStr = weekDate.toISOString().split('T')[0]
+
+        // Update servings for this recipe in the current week
+        await fetch('/api/weekmenu/update-servings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipe_id: recipe.id,
+            week_date: weekDateStr,
+            servings: servings
+          })
+        })
+      } catch (error) {
+        console.error('Error updating servings:', error)
+      }
+    }
+  }
+
   // Handle confirm
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    // Update servings in the database if it was changed
+    await updateServingsIfChanged()
+
     const itemsToAdd: GroceryItem[] = recipe.parsed_ingredients
       .filter(ingredient => selectedIngredients.has(ingredient.id))
       .map(ingredient => ({
@@ -156,7 +187,9 @@ export function IngredientSelectionPopup({
   }
 
   // Handle cancel/skip
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    // Save servings even if user skips adding ingredients
+    await updateServingsIfChanged()
     onCancel()
   }
 
