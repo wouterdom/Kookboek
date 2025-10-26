@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
           amount,
           unit,
           amount_display,
+          section: null, // Manual recipes don't have sections
           scalable: amount !== null,
           order_index: index
         }

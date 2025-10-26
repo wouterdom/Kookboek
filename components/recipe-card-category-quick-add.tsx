@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Tag } from "lucide-react"
-import { CategoriesByType } from "@/types/supabase"
-import { CATEGORY_LABEL_COLOR } from "@/lib/colors"
+import { getCategoryStyle } from "@/lib/colors"
 import {
   Sheet,
   SheetContent,
@@ -11,6 +10,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet"
+import { useCategories } from "@/contexts/categories-context"
 
 interface RecipeCardCategoryQuickAddProps {
   recipeId: string
@@ -26,31 +26,15 @@ export function RecipeCardCategoryQuickAdd({
   onUpdate
 }: RecipeCardCategoryQuickAddProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [categoriesByType, setCategoriesByType] = useState<CategoriesByType>({})
+  const { categoriesByType } = useCategories()
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set(selectedCategoryIds)
   )
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    loadCategories()
-  }, [])
-
-  useEffect(() => {
     setSelectedCategories(new Set(selectedCategoryIds))
   }, [selectedCategoryIds])
-
-  const loadCategories = async () => {
-    try {
-      const response = await fetch('/api/categories/grouped')
-      if (response.ok) {
-        const data = await response.json()
-        setCategoriesByType(data)
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error)
-    }
-  }
 
   const toggleCategory = (categoryId: string) => {
     const newSelected = new Set(selectedCategories)
@@ -140,27 +124,30 @@ export function RecipeCardCategoryQuickAdd({
                         Geen categorieën
                       </p>
                     ) : (
-                      typeData.categories.map(category => (
-                        <label
-                          key={category.id}
-                          className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-gray-50 transition-colors active:bg-gray-100"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.has(category.id)}
-                            onChange={() => toggleCategory(category.id)}
-                            className="checkbox h-5 w-5 flex-shrink-0"
-                          />
-                          <span
-                            className="h-3 w-3 rounded-full flex-shrink-0"
-                            style={{
-                              backgroundColor: CATEGORY_LABEL_COLOR.value,
-                              border: `2px solid ${CATEGORY_LABEL_COLOR.borderColor}`
-                            }}
-                          />
-                          <span className="text-sm flex-1">{category.name}</span>
-                        </label>
-                      ))
+                      typeData.categories.map(category => {
+                        const style = getCategoryStyle(category.color)
+                        return (
+                          <label
+                            key={category.id}
+                            className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-gray-50 transition-colors active:bg-gray-100"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedCategories.has(category.id)}
+                              onChange={() => toggleCategory(category.id)}
+                              className="checkbox h-5 w-5 flex-shrink-0"
+                            />
+                            <span
+                              className="h-3 w-3 rounded-full flex-shrink-0"
+                              style={{
+                                backgroundColor: style.backgroundColor,
+                                border: `2px solid ${style.borderColor}`
+                              }}
+                            />
+                            <span className="text-sm flex-1">{category.name}</span>
+                          </label>
+                        )
+                      })
                     )}
                   </div>
                 </div>

@@ -35,6 +35,7 @@ CRITICAL RULES - MUST FOLLOW:
    - If no amount specified, use null
    - **MINIMUM**: Every recipe must have at least 2 ingredients
    - If you cannot find ingredients, DO NOT include that recipe
+   - **SECTIONS**: If ingredients are grouped (e.g., "Voor de saus:", "Voor de vulling:", "Voor het beslag:"), extract the section name. Otherwise use null.
 
 4. Instructions (REQUIRED - DO NOT SKIP):
    - Look for sections labeled: "Bereiding", "Instructies", "Stappen", "Werkwijze"
@@ -98,12 +99,14 @@ Return ONLY valid JSON array. No markdown, no code blocks, just the JSON:
       {
         "amount": 200,
         "unit": "g",
-        "name": "bloem"
+        "name": "bloem",
+        "section": null
       },
       {
         "amount": null,
         "unit": "snufje",
-        "name": "zout"
+        "name": "zout",
+        "section": "Voor de saus"
       }
     ] (REQUIRED - minimum 2),
     "instructions": "1. Verwarm de oven voor op 180°C.\\n2. Meng de bloem met het zout.\\n3. Bak 25-30 minuten." (REQUIRED - minimum 2 steps),
@@ -124,6 +127,7 @@ export interface ExtractedIngredient {
   amount: number | null
   unit: string | null
   name: string
+  section?: string | null
 }
 
 export interface ExtractedRecipe {

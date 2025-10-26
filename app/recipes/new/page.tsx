@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mic, Loader2, MessageSquare, StopCircle, Send, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
-import MicrophonePermissionModal from '@/components/microphone-permission-modal'
+import { Modal } from '@/components/modal'
 import { LoadingOverlay } from '@/components/loading-overlay'
 
 export default function NewRecipePage() {
@@ -16,8 +16,7 @@ export default function NewRecipePage() {
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [showPermissionModal, setShowPermissionModal] = useState(false)
-  const [hasPermissionCheck, setHasPermissionCheck] = useState(false)
+  const [showMicErrorModal, setShowMicErrorModal] = useState(false)
   const [microphoneStatus, setMicrophoneStatus] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown')
   const [chatMessages, setChatMessages] = useState<Array<{ type: 'ai' | 'user', message: string, recipeData?: any }>>([
     {
@@ -43,6 +42,7 @@ export default function NewRecipePage() {
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const hasSoundRef = useRef<boolean>(false)
+  const recordingDurationRef = useRef<number>(0)
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -73,7 +73,6 @@ export default function NewRecipePage() {
           permissionStatus.addEventListener('change', () => {
             setMicrophoneStatus(permissionStatus.state as any)
             if (permissionStatus.state === 'granted') {
-              setHasPermissionCheck(true)
               toast.success('Microfoon toegang hersteld!', {
                 description: 'Je kunt nu weer spraakdictatie gebruiken.'
               })
@@ -116,25 +115,13 @@ export default function NewRecipePage() {
   const handleMicrophoneClick = useCallback(() => {
     // Check current permission status and handle accordingly
     if (microphoneStatus === 'denied') {
-      toast.error('Microfoon toegang geblokkeerd', {
-        description: 'Ga naar je browser instellingen om microfoon toegang te herstellen. Op mobiel: Menu → Site-instellingen → Microfoon.'
-      })
+      setShowMicErrorModal(true)
       return
     }
 
-    // For first time or unknown status, show permission modal
-    if (!hasPermissionCheck || microphoneStatus === 'unknown') {
-      setShowPermissionModal(true)
-    } else {
-      startVoiceInput()
-    }
-  }, [hasPermissionCheck, microphoneStatus]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const requestMicrophonePermission = useCallback(async () => {
-    setShowPermissionModal(false)
-    setHasPermissionCheck(true)
-    await startVoiceInput()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // Just try to start voice input directly
+    startVoiceInput()
+  }, [microphoneStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startVoiceInput = useCallback(async () => {
     try {
@@ -158,7 +145,6 @@ export default function NewRecipePage() {
           getUserMedia.call(navigator, { audio: true }, resolve, reject)
         })
 
-        setHasPermissionCheck(true)
         setMicrophoneStatus('granted')
         processMediaStream(stream)
         return
@@ -175,7 +161,6 @@ export default function NewRecipePage() {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      setHasPermissionCheck(true) // Permission was granted
       setMicrophoneStatus('granted')
       processMediaStream(stream)
 
@@ -207,8 +192,8 @@ export default function NewRecipePage() {
         analyser.getByteFrequencyData(dataArray)
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length
 
-        // If average level is above threshold, we detected sound (lowered threshold for mobile)
-        if (average > 10) {
+        // If average level is above threshold, we detected sound (very low threshold for mobile compatibility)
+        if (average > 3) {
           hasSoundRef.current = true
         }
 
@@ -246,23 +231,29 @@ export default function NewRecipePage() {
       }
 
       mediaRecorder.onstop = async () => {
+        console.log('MediaRecorder onstop triggered')
         // Stop monitoring
         isMonitoring = false
 
         const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
-        const finalDuration = recordingDuration
+        const finalDuration = recordingDurationRef.current // Use ref instead of state
+
+        console.log('Recording stopped - Duration:', finalDuration, 'Blob size:', audioBlob.size, 'Had sound:', hasSoundRef.current, 'Chunks:', audioChunksRef.current.length)
 
         // Check minimum recording duration (2 seconds)
         if (finalDuration < 2) {
+          console.log('Recording too short:', finalDuration)
           toast.error('Opname te kort', {
             description: `Opname was slechts ${finalDuration} seconden. Neem minimaal 2 seconden op.`
           })
-        } else if (!hasSoundRef.current) {
-          // Check if we detected any sound
+        } else if (!hasSoundRef.current && finalDuration < 5) {
+          // Only check for sound if recording is short (< 5s) - longer recordings likely have audio
+          console.log('No sound detected in short recording')
           toast.error('Geen spraak gedetecteerd', {
             description: 'Er is geen geluid opgenomen. Spreek duidelijk in de microfoon.'
           })
         } else {
+          console.log('Processing voice input...')
           await processVoiceInput(audioBlob)
         }
 
@@ -278,10 +269,12 @@ export default function NewRecipePage() {
 
       mediaRecorder.start(1000)
       setIsRecording(true)
+      recordingDurationRef.current = 0
 
       // Start timer
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1)
+        recordingDurationRef.current += 1
+        setRecordingDuration(recordingDurationRef.current)
       }, 1000)
 
       toast.success('🎤 Opname gestart', {
@@ -325,26 +318,31 @@ export default function NewRecipePage() {
   }, [])
 
   const stopVoiceInput = useCallback(() => {
+    console.log('stopVoiceInput called, isRecording:', isRecording, 'mediaRecorder:', !!mediaRecorderRef.current)
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Stopping mediaRecorder, duration:', recordingDuration)
       mediaRecorderRef.current.stop()
       setIsRecording(false)
       toast.info('⏸️ Opname gestopt', {
         description: 'AI verwerkt je recept...'
       })
     }
-  }, [isRecording])
+  }, [isRecording, recordingDuration])
 
   const processVoiceInput = async (audioBlob: Blob) => {
     try {
+      console.log('processVoiceInput starting, blob size:', audioBlob.size)
       setIsProcessing(true)
 
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
 
+      console.log('Sending to API...')
       const response = await fetch('/api/recipes/voice', {
         method: 'POST',
         body: formData
       })
+      console.log('API response status:', response.status)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -960,11 +958,14 @@ export default function NewRecipePage() {
         )}
       </div>
 
-      {/* Microphone Permission Modal */}
-      <MicrophonePermissionModal
-        isOpen={showPermissionModal}
-        onClose={() => setShowPermissionModal(false)}
-        onRequestPermission={requestMicrophonePermission}
+      {/* Microphone Permission Error Modal */}
+      <Modal
+        isOpen={showMicErrorModal}
+        onClose={() => setShowMicErrorModal(false)}
+        title="Microfoon geblokkeerd"
+        message="Deze app heeft toegang tot je microfoon nodig voor spraakdictatie. Ga naar je browserinstellingen om dit te herstellen."
+        type="warning"
+        confirmText="OK"
       />
     </div>
   )

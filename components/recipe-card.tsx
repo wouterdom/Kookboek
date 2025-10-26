@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, Clock, Users, Trash2 } from "lucide-react"
+import { Heart, Clock, Users, Trash2, Bookmark } from "lucide-react"
 import { Recipe } from "@/types/supabase"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -10,6 +10,9 @@ import { getCategoryStyle } from "@/lib/colors"
 import { ConfirmModal, Modal } from "./modal"
 import { useRouter } from "next/navigation"
 import { RecipeCardCategoryQuickAdd } from "./recipe-card-category-quick-add"
+import { useWeekMenu } from "@/contexts/weekmenu-context"
+import { IngredientSelectionPopup } from "./ingredient-selection-popup"
+import { useCategories } from "@/contexts/categories-context"
 
 interface RecipeCardProps {
   recipe: Recipe
@@ -25,8 +28,12 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
   const [isDeleting, setIsDeleting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [displayCategories, setDisplayCategories] = useState(categories)
+  const [showIngredientPopup, setShowIngredientPopup] = useState(false)
+  const [recipeWithIngredients, setRecipeWithIngredients] = useState<any>(null)
   const supabase = createClient()
   const router = useRouter()
+  const { isRecipeInWeekMenu, addToWeekMenu, removeFromWeekMenu, isLoading: isBookmarkLoading } = useWeekMenu()
+  const { categoriesByType } = useCategories()
 
   // Update display categories when categories prop changes
   useEffect(() => {
@@ -86,26 +93,22 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
 
   const handleCategoryUpdate = async () => {
-    // Reload full category details when updated via quick add
+    // Reload recipe categories when updated via quick add
     try {
-      const [recipeCategoriesResponse, allCategoriesResponse] = await Promise.all([
-        fetch(`/api/recipes/${recipe.slug}/categories`),
-        fetch('/api/categories/grouped')
-      ])
+      const recipeCategoriesResponse = await fetch(`/api/recipes/${recipe.slug}/categories`)
 
-      if (!recipeCategoriesResponse.ok || !allCategoriesResponse.ok) {
+      if (!recipeCategoriesResponse.ok) {
         console.error('Error fetching categories')
         return
       }
 
       const recipeCategoriesData = await recipeCategoriesResponse.json()
-      const allCategoriesData = await allCategoriesResponse.json()
 
       // Extract category IDs from recipe categories
       const categoryIds = recipeCategoriesData.map((rc: any) => rc.category_id)
 
-      // Flatten all categories from grouped data
-      const allCategories = Object.values(allCategoriesData).flatMap(
+      // Flatten all categories from grouped data (use context instead of fetching)
+      const allCategories = Object.values(categoriesByType).flatMap(
         (typeData: any) => typeData.categories
       )
 
@@ -119,6 +122,92 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
       console.error('Error loading recipe categories:', error)
     }
   }
+
+  const handleBookmarkClick = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isBookmarkLoading) return
+
+    const isInWeekMenu = isRecipeInWeekMenu(recipe.id)
+
+    if (isInWeekMenu) {
+      // Remove from weekmenu
+      try {
+        await removeFromWeekMenu(recipe.id)
+      } catch (error) {
+        console.error('Error removing from weekmenu:', error)
+        setErrorMessage('Er ging iets mis bij het verwijderen uit het weekmenu')
+      }
+    } else {
+      // Add to weekmenu and show ingredient selection popup
+      try {
+        // First, get recipe with ingredients
+        const { data: recipeData, error } = await supabase
+          .from('recipes')
+          .select(`
+            id,
+            title,
+            image_url,
+            servings_default,
+            parsed_ingredients (
+              id,
+              ingredient_name_nl,
+              amount_display,
+              order_index
+            )
+          `)
+          .eq('id', recipe.id)
+          .single()
+
+        if (error) throw error
+
+        // Add to weekmenu
+        await addToWeekMenu(recipe.id, () => {
+          // Show ingredient selection popup
+          setRecipeWithIngredients(recipeData)
+          setShowIngredientPopup(true)
+        })
+      } catch (error) {
+        console.error('Error adding to weekmenu:', error)
+        setErrorMessage('Er ging iets mis bij het toevoegen aan het weekmenu')
+      }
+    }
+  }
+
+  const handleIngredientConfirm = async (groceryItems: any[]) => {
+    try {
+      // Add items to grocery list via API
+      const response = await fetch('/api/groceries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: groceryItems })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to add ingredients to grocery list')
+      }
+
+      const data = await response.json()
+      console.log(`Successfully added ${data.count} items to grocery list`)
+
+      // Close popup
+      setShowIngredientPopup(false)
+      setRecipeWithIngredients(null)
+    } catch (error) {
+      console.error('Error adding to grocery list:', error)
+      setErrorMessage('Er ging iets mis bij het toevoegen aan de boodschappenlijst')
+      // Keep popup open so user can retry
+    }
+  }
+
+  const handleIngredientCancel = () => {
+    setShowIngredientPopup(false)
+    setRecipeWithIngredients(null)
+  }
+
+  const isInWeekMenu = isRecipeInWeekMenu(recipe.id)
 
   return (
     <div className="h-full">
@@ -136,6 +225,21 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
             </div>
           </Link>
           <button
+            onClick={handleBookmarkClick}
+            disabled={isBookmarkLoading}
+            className="absolute top-3 right-[56px] z-10 w-10 h-10 rounded-full bg-white/90 backdrop-blur flex items-center justify-center cursor-pointer shadow-sm transition-all border-none hover:scale-110"
+            aria-label={isInWeekMenu ? 'Verwijder uit weekmenu' : 'Voeg toe aan weekmenu'}
+          >
+            <Bookmark
+              className={`h-5 w-5 transition-all ${
+                isInWeekMenu
+                  ? "fill-[oklch(var(--primary))] stroke-[oklch(var(--primary))]"
+                  : "stroke-current"
+              }`}
+            />
+          </button>
+
+          <button
             onClick={handleFavoriteClick}
             disabled={isUpdating}
             className="heart-btn"
@@ -149,7 +253,6 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
               }`}
             />
           </button>
-
         </div>
         <div className="p-4 relative flex-1 flex flex-col">
           {/* Category Quick Add Button - In card content area */}
@@ -230,6 +333,16 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
           onClose={() => setErrorMessage(null)}
           message={errorMessage}
           type="error"
+        />
+      )}
+
+      {/* Ingredient Selection Popup */}
+      {showIngredientPopup && recipeWithIngredients && (
+        <IngredientSelectionPopup
+          isOpen={showIngredientPopup}
+          recipe={recipeWithIngredients}
+          onConfirm={handleIngredientConfirm}
+          onCancel={handleIngredientCancel}
         />
       )}
     </div>

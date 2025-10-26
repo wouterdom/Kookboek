@@ -27,14 +27,14 @@ export async function PATCH(
 ) {
   const supabase = await createClient()
   const { id } = await params
-  const { name, order_index } = await request.json()
+  const { name, color, order_index } = await request.json()
 
   const updateData: Record<string, string | number> = {}
   if (name !== undefined) {
     updateData.name = name.trim()
     updateData.slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
   }
-  // Color is no longer updateable - all categories use the fixed soft yellow color
+  if (color !== undefined) updateData.color = color
   if (order_index !== undefined) updateData.order_index = order_index
 
   const { data: category, error } = await supabase

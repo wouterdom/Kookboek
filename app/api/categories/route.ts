@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { CATEGORY_LABEL_COLOR } from '@/lib/colors'
+import { DEFAULT_CATEGORY_COLOR } from '@/lib/colors'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     .insert({
       name: name.trim(),
       slug,
-      color: CATEGORY_LABEL_COLOR.value, // Always use fixed soft yellow
+      color: color || DEFAULT_CATEGORY_COLOR,
       type_id,
       order_index
     })

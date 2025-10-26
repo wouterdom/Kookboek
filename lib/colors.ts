@@ -1,11 +1,7 @@
-// Fixed soft yellow color for all category labels
-export const CATEGORY_LABEL_COLOR = {
-  value: '#fef3c7', // amber-100
-  textColor: '#92400e', // amber-800
-  borderColor: '#fde68a', // amber-200
-} as const;
+// Default color for new categories (improved blue with better contrast)
+export const DEFAULT_CATEGORY_COLOR = '#3b82f6'; // blue-500
 
-// Legacy color array - kept for backward compatibility but no longer used for new categories
+// Color palette for category customization
 export const CATEGORY_COLORS = [
   { name: 'Rood', value: '#ef4444', bgClass: 'bg-red-500', textClass: 'text-white' },
   { name: 'Oranje', value: '#f97316', bgClass: 'bg-orange-500', textClass: 'text-white' },
@@ -27,11 +23,37 @@ export const CATEGORY_COLORS = [
   { name: 'Slate', value: '#64748b', bgClass: 'bg-slate-500', textClass: 'text-white' },
 ] as const;
 
-// Always returns the fixed soft yellow color for all categories
+/**
+ * Calculate if a color is light or dark to determine text color
+ * Uses relative luminance formula for accessibility
+ */
+function isLightColor(hexColor: string): boolean {
+  // Remove # if present
+  const hex = hexColor.replace('#', '');
+
+  // Convert to RGB
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+  // Return true if light (use dark text), false if dark (use white text)
+  return luminance > 0.5;
+}
+
+/**
+ * Get category styling based on the provided color
+ * Uses the color from database or falls back to default
+ */
 export function getCategoryStyle(color?: string) {
+  const bgColor = color || DEFAULT_CATEGORY_COLOR;
+  const textColor = isLightColor(bgColor) ? '#111827' : '#ffffff';
+
   return {
-    backgroundColor: CATEGORY_LABEL_COLOR.value,
-    color: CATEGORY_LABEL_COLOR.textColor,
-    borderColor: CATEGORY_LABEL_COLOR.borderColor,
+    backgroundColor: bgColor,
+    color: textColor,
+    borderColor: bgColor,
   };
 }

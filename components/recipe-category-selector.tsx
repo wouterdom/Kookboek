@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Plus, Tag } from "lucide-react"
 import { Category, CategoryType, CategoriesByType } from "@/types/supabase"
-import { CATEGORY_LABEL_COLOR } from "@/lib/colors"
+import { getCategoryStyle } from "@/lib/colors"
 
 interface RecipeCategorySelectorProps {
   recipeId: string
@@ -107,26 +107,29 @@ export function RecipeCategorySelector({
     <div className="relative">
       {/* Display selected categories */}
       <div className="flex flex-wrap gap-2 mb-2">
-        {getSelectedCategoriesList().map(category => (
-          <span
-            key={category.id}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm border-2"
-            style={{
-              backgroundColor: CATEGORY_LABEL_COLOR.value,
-              borderColor: CATEGORY_LABEL_COLOR.borderColor,
-              color: CATEGORY_LABEL_COLOR.textColor
-            }}
-          >
+        {getSelectedCategoriesList().map(category => {
+          const style = getCategoryStyle(category.color)
+          return (
             <span
-              className="h-2 w-2 rounded-full"
+              key={category.id}
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm border-2"
               style={{
-                backgroundColor: CATEGORY_LABEL_COLOR.value,
-                border: `1px solid ${CATEGORY_LABEL_COLOR.borderColor}`
+                backgroundColor: style.backgroundColor,
+                borderColor: style.borderColor,
+                color: style.color
               }}
-            />
-            {category.name}
-          </span>
-        ))}
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{
+                  backgroundColor: style.backgroundColor,
+                  border: `1px solid ${style.borderColor}`
+                }}
+              />
+              {category.name}
+            </span>
+          )
+        })}
       </div>
 
       {/* Edit button */}
@@ -166,27 +169,30 @@ export function RecipeCategorySelector({
                         Geen categorieën beschikbaar
                       </p>
                     ) : (
-                      typeData.categories.map(category => (
-                        <label
-                          key={category.id}
-                          className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.has(category.id)}
-                            onChange={() => toggleCategory(category.id)}
-                            className="checkbox h-4 w-4"
-                          />
-                          <span
-                            className="h-3 w-3 rounded-full flex-shrink-0"
-                            style={{
-                              backgroundColor: CATEGORY_LABEL_COLOR.value,
-                              border: `2px solid ${CATEGORY_LABEL_COLOR.borderColor}`
-                            }}
-                          />
-                          <span className="text-sm truncate">{category.name}</span>
-                        </label>
-                      ))
+                      typeData.categories.map(category => {
+                        const style = getCategoryStyle(category.color)
+                        return (
+                          <label
+                            key={category.id}
+                            className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedCategories.has(category.id)}
+                              onChange={() => toggleCategory(category.id)}
+                              className="checkbox h-4 w-4"
+                            />
+                            <span
+                              className="h-3 w-3 rounded-full flex-shrink-0"
+                              style={{
+                                backgroundColor: style.backgroundColor,
+                                border: `2px solid ${style.borderColor}`
+                              }}
+                            />
+                            <span className="text-sm truncate">{category.name}</span>
+                          </label>
+                        )
+                      })
                     )}
                   </div>
                 </div>

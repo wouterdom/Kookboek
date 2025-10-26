@@ -393,6 +393,7 @@ async function importRecipe(
       .map((ing: any, index: number) => {
         const amount = ing.amount || null
         const unit = ing.unit || null
+        const section = ing.section || null
         let amount_display = ''
 
         if (amount && unit) {
@@ -409,6 +410,7 @@ async function importRecipe(
           amount,
           unit,
           amount_display,
+          section,
           scalable: amount !== null,
           order_index: index
         }
