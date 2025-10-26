@@ -1,3 +1,4 @@
+import type { WeeklyMenuItemUpdate } from "@/types/supabase"
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -12,12 +13,7 @@ export async function PUT(
   const { day_of_week, servings, is_completed, order_index } = body
 
   // Build update object with only provided fields
-  const updateData: {
-    day_of_week?: number | null
-    servings?: number
-    is_completed?: boolean
-    order_index?: number
-  } = {}
+  const updateData: WeeklyMenuItemUpdate = {}
 
   // Validate day_of_week if provided
   if (day_of_week !== undefined) {
@@ -46,7 +42,8 @@ export async function PUT(
 
   const { data: item, error } = await supabase
     .from('weekly_menu_items')
-    .update(updateData)
+    // @ts-ignore
+    .update(updateData as any)
     .eq('id', id)
     .select(`
       id,

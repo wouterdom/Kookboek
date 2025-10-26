@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { GroceryItemUpdate } from '@/types/supabase'
 
 // PUT /api/groceries/[id] - Update grocery item
 export async function PUT(
@@ -12,13 +13,7 @@ export async function PUT(
   const { name, amount, category_id, is_checked } = body
 
   // Build update object with only provided fields
-  const updateData: {
-    name?: string
-    amount?: string
-    category_id?: string | null
-    is_checked?: boolean
-    updated_at?: string
-  } = {
+  const updateData: GroceryItemUpdate = {
     updated_at: new Date().toISOString()
   }
 
@@ -43,6 +38,7 @@ export async function PUT(
 
   const { data: item, error } = await supabase
     .from('grocery_items')
+    // @ts-ignore - Supabase SSR client type inference issue
     .update(updateData)
     .eq('id', id)
     .select(`

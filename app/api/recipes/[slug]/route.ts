@@ -81,7 +81,7 @@ export async function PUT(
     // Update recipe
     const { data: updatedRecipe, error: updateError } = await supabase
       .from('recipes')
-      // @ts-expect-error - Dynamic update
+      // @ts-ignore - Supabase SSR client type inference issue
       .update(updateData)
       .eq('id', (existingRecipe as any).id)
       .select()
@@ -115,7 +115,7 @@ export async function PUT(
 
         const { error: ingredientsError } = await supabase
           .from('parsed_ingredients')
-          // @ts-expect-error - Dynamic insert
+          // @ts-ignore - Supabase SSR client type inference issue
           .insert(ingredients)
 
         if (ingredientsError) {

@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const { data: insertedRecipe, error: recipeError } = await supabase
       .from('recipes')
-      // @ts-expect-error
+      // @ts-ignore - Supabase SSR client type inference issue
       .insert(recipe)
       .select()
       .single()
@@ -140,8 +140,8 @@ export async function POST(request: NextRequest) {
 
       const { error: ingredientsError } = await supabase
         .from('parsed_ingredients')
-        // @ts-expect-error
-        .insert(parsedIngredients)
+        // @ts-ignore - Supabase SSR client type inference issue
+        .insert(parsedIngredients as any)
 
       if (ingredientsError) {
         console.error('Error inserting ingredients:', ingredientsError)

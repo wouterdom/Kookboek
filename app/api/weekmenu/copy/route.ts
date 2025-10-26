@@ -1,3 +1,4 @@
+import type { WeeklyMenuItemInsert } from "@/types/supabase"
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     .eq('week_date', to_week)
 
   // Create new items for target week
-  const newItems = sourceItems.map(item => ({
+  const newItems = sourceItems.map((item: any) => ({
     recipe_id: item.recipe_id,
     week_date: to_week,
     day_of_week: item.day_of_week,
@@ -53,7 +54,8 @@ export async function POST(request: Request) {
 
   const { data: copiedItems, error: insertError } = await supabase
     .from('weekly_menu_items')
-    .insert(newItems)
+    // @ts-ignore
+    .insert(newItems as any)
     .select(`
       *,
       recipe:recipes(

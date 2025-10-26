@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { CategoryTypeInsert } from '@/types/supabase'
 
 export async function GET() {
   const supabase = await createClient()
@@ -28,16 +29,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Slug is required' }, { status: 400 })
   }
 
+  const insertData: CategoryTypeInsert = {
+    name: name.trim(),
+    slug: slug.trim(),
+    description: description?.trim() || null,
+    allow_multiple: allow_multiple ?? true,
+    order_index: order_index ?? null
+  }
+
   const { data: categoryType, error } = await supabase
     .from('category_types')
-    // @ts-expect-error - Insert with runtime validated data
-    .insert({
-      name: name.trim(),
-      slug: slug.trim(),
-      description: description?.trim() || null,
-      allow_multiple: allow_multiple ?? true,
-      order_index: order_index ?? null
-    })
+    // @ts-ignore - Supabase SSR client type inference issue
+    .insert(insertData)
     .select()
     .single()
 

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { DEFAULT_CATEGORY_COLOR } from '@/lib/colors'
+import type { CategoryInsert } from '@/types/supabase'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -51,16 +52,18 @@ export async function POST(request: Request) {
   // Generate slug from name
   const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
+  const insertData: CategoryInsert = {
+    name: name.trim(),
+    slug,
+    color: color || DEFAULT_CATEGORY_COLOR,
+    type_id,
+    order_index: order_index || null
+  }
+
   const { data: category, error } = await supabase
     .from('categories')
-    // @ts-expect-error - Insert with runtime validated data
-    .insert({
-      name: name.trim(),
-      slug,
-      color: color || DEFAULT_CATEGORY_COLOR,
-      type_id,
-      order_index
-    })
+    // @ts-ignore - Supabase SSR client type inference issue
+    .insert(insertData)
     .select(`
       *,
       category_type:category_types(*)

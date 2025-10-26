@@ -68,12 +68,12 @@ export async function POST(request: NextRequest) {
     // Create job record
     const { data: job, error: jobError } = await supabase
       .from('pdf_import_jobs')
-      // @ts-expect-error
+      // @ts-ignore
       .insert({
         filename: file.name,
         file_size: file.size,
         status: 'processing'
-      })
+      } as any)
       .select()
       .single()
 
@@ -171,10 +171,10 @@ async function processPdfInBackground(
     // Update job with found recipes
     await supabase
       .from('pdf_import_jobs')
-      // @ts-expect-error
+      // @ts-ignore
       .update({
         recipes_found: result.recipes.length
-      })
+      } as any)
       .eq('id', jobId)
 
     // Import each recipe with validation
@@ -206,12 +206,12 @@ async function processPdfInBackground(
     // Mark job as completed
     await supabase
       .from('pdf_import_jobs')
-      // @ts-expect-error
+      // @ts-ignore
       .update({
         status: 'completed',
         recipes_imported: importedCount,
         completed_at: new Date().toISOString()
-      })
+      } as any)
       .eq('id', jobId)
 
     console.log(`Completed job ${jobId}: ${importedCount}/${result.recipes.length} recipes imported`)
@@ -222,11 +222,11 @@ async function processPdfInBackground(
     // Mark job as failed
     await supabase
       .from('pdf_import_jobs')
-      // @ts-expect-error
+      // @ts-ignore
       .update({
         status: 'failed',
         error_message: error instanceof Error ? error.message : 'Unknown error'
-      })
+      } as any)
       .eq('id', jobId)
   }
 }

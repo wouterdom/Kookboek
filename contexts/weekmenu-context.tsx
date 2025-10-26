@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getCurrentWeekMonday, formatDateForDB } from '@/lib/week-utils'
+import type { WeeklyMenuItem as DBWeeklyMenuItem, WeeklyMenuItemInsert } from '@/types/supabase'
 
 /**
  * WeekMenu Context
@@ -63,7 +64,12 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const recipeIds = new Set((data || []).map(item => item.recipe_id))
+      const typedData = data as Array<Pick<DBWeeklyMenuItem, 'recipe_id'>> | null
+      const recipeIds = new Set(
+        (typedData || [])
+          .map(item => item.recipe_id)
+          .filter((id): id is string => id !== null)
+      )
       setBookmarkedRecipeIds(recipeIds)
     } catch (error) {
       console.error('Error refreshing bookmarks:', error)
@@ -104,19 +110,25 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
         .eq('id', recipeId)
         .single()
 
+      const typedRecipe = recipe as { servings_default: number } | null
+
       // Insert into weekmenu (no day assigned yet)
+      const insertData: WeeklyMenuItemInsert = {
+        recipe_id: recipeId,
+        week_date: weekDate,
+        day_of_week: null, // No day assigned initially
+        servings: typedRecipe?.servings_default || 4,
+        is_completed: false,
+        order_index: 0,
+      }
+
       const { data: newItem, error } = await supabase
         .from('weekly_menu_items')
-        .insert({
-          recipe_id: recipeId,
-          week_date: weekDate,
-          day_of_week: null, // No day assigned initially
-          servings: recipe?.servings_default || 4,
-          is_completed: false,
-          order_index: 0,
-        })
+        .insert(insertData as any)
         .select()
         .single()
+
+      const typedNewItem = newItem as DBWeeklyMenuItem | null
 
       if (error) {
         console.error('Error adding to weekmenu:', error)
@@ -127,8 +139,8 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
       setBookmarkedRecipeIds(prev => new Set(prev).add(recipeId))
 
       // Call success callback
-      if (onSuccess && newItem) {
-        onSuccess(newItem as WeekMenuItem)
+      if (onSuccess && typedNewItem) {
+        onSuccess(typedNewItem as WeekMenuItem)
       }
     } catch (error) {
       console.error('Error in addToWeekMenu:', error)

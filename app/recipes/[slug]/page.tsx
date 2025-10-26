@@ -20,6 +20,8 @@ import {
   Settings,
   Trash2,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -100,6 +102,8 @@ export default function RecipeDetailPage({
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [tempNotes, setTempNotes] = useState('')
   const [isSavingNotesIndividual, setIsSavingNotesIndividual] = useState(false)
+  const [recipeImages, setRecipeImages] = useState<Array<{ id: string; image_url: string; is_primary: boolean }>>([])
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
 
   // Unwrap params on mount
@@ -149,6 +153,24 @@ export default function RecipeDetailPage({
         if (!ingredientsError && ingredientsData) {
           setIngredients(ingredientsData)
         }
+
+        // Fetch all images from recipe_images table
+        const { data: imagesData, error: imagesError } = await supabase
+          .from('recipe_images')
+          .select('id, image_url, is_primary')
+          .eq('recipe_id', recipe.id)
+          .order('display_order', { ascending: true })
+
+        if (!imagesError && imagesData && imagesData.length > 0) {
+          setRecipeImages(imagesData as any)
+          // Find primary image index
+          const primaryIndex = (imagesData as any[]).findIndex((img: any) => img.is_primary)
+          setCurrentImageIndex(primaryIndex >= 0 ? primaryIndex : 0)
+        } else if (recipe.image_url) {
+          // Fallback: if no images in recipe_images but recipe.image_url exists, create temporary entry
+          setRecipeImages([{ id: 'legacy', image_url: recipe.image_url, is_primary: true }])
+          setCurrentImageIndex(0)
+        }
       }
     } catch (error) {
       console.error('Error fetching recipe:', error)
@@ -188,7 +210,7 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
-      // @ts-expect-error - Dynamic update
+      // @ts-ignore - Supabase SSR client type inference issue
       .update({ is_favorite: newFavoriteState })
       .eq('id', (recipe as any).id)
   }
@@ -203,7 +225,7 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
-      // @ts-expect-error - Dynamic update
+      // @ts-ignore - Supabase SSR client type inference issue
       .update({ labels: updatedLabels })
       .eq('id', (recipe as any).id)
   }
@@ -216,7 +238,7 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
-      // @ts-expect-error - Dynamic update
+      // @ts-ignore - Supabase SSR client type inference issue
       .update({ labels: updatedLabels })
       .eq('id', (recipe as any).id)
   }
@@ -229,7 +251,7 @@ export default function RecipeDetailPage({
 
     await supabase
       .from('recipes')
-      // @ts-expect-error - Dynamic update
+      // @ts-ignore - Supabase SSR client type inference issue
       .update({ labels: updatedLabels })
       .eq('id', (recipe as any).id)
   }
@@ -547,7 +569,8 @@ export default function RecipeDetailPage({
       amount_display: '',
       scalable: true,
       section: null,
-      order_index: tempIngredients.length
+      order_index: tempIngredients.length,
+      created_at: null
     }
     setTempIngredients([...tempIngredients, newIngredient])
   }
@@ -772,26 +795,81 @@ export default function RecipeDetailPage({
       {/* Main Content */}
       <main className="container mx-auto max-w-5xl px-2 sm:px-4 py-4 sm:py-8">
         <Card className="overflow-hidden print-recipe">
-          {/* Hero Image */}
+          {/* Hero Image Gallery */}
           <div className="relative h-96 w-full">
-            <Image
-              src={
-                recipe.image_url ||
-                "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop"
-              }
-              alt={recipe.title}
-              fill
-              className="object-cover"
-              unoptimized
-            />
-            {/* Always show image edit button */}
-            <button
-              onClick={() => setShowImageUploadModal(true)}
-              className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all hover:bg-white"
-            >
-              <Edit3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Wijzig Foto</span>
-            </button>
+            {recipeImages.length > 0 ? (
+              <>
+                <Image
+                  src={recipeImages[currentImageIndex]?.image_url || "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop"}
+                  alt={recipe.title}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+
+                {/* Navigation arrows (only show if more than 1 image) */}
+                {recipeImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : recipeImages.length - 1))}
+                      className="no-print absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all"
+                    >
+                      <ChevronLeft className="h-6 w-6 text-gray-800" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentImageIndex((prev) => (prev < recipeImages.length - 1 ? prev + 1 : 0))}
+                      className="no-print absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all"
+                    >
+                      <ChevronRight className="h-6 w-6 text-gray-800" />
+                    </button>
+                  </>
+                )}
+
+                {/* Dots indicator (only show if more than 1 image) */}
+                {recipeImages.length > 1 && (
+                  <div className="no-print absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                    {recipeImages.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`h-2 rounded-full transition-all ${
+                          idx === currentImageIndex
+                            ? 'w-8 bg-white'
+                            : 'w-2 bg-white/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Image edit button */}
+                <button
+                  onClick={() => setShowImageUploadModal(true)}
+                  className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all hover:bg-white"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Wijzig Foto</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <Image
+                  src={recipe.image_url || "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=1200&h=600&fit=crop"}
+                  alt={recipe.title}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+                {/* Image edit button */}
+                <button
+                  onClick={() => setShowImageUploadModal(true)}
+                  className="no-print absolute right-4 top-4 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all hover:bg-white"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Wijzig Foto</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Recipe Content */}
@@ -1152,7 +1230,7 @@ export default function RecipeDetailPage({
                             <label className="flex items-center gap-1 text-sm whitespace-nowrap">
                               <input
                                 type="checkbox"
-                                checked={ingredient.scalable}
+                                checked={ingredient.scalable ?? false}
                                 onChange={(e) => updateTempIngredient(index, 'scalable', e.target.checked)}
                                 className="rounded"
                               />
@@ -1360,7 +1438,7 @@ export default function RecipeDetailPage({
       )}
 
       {/* Image Upload Modal */}
-      {showImageUploadModal && (
+      {showImageUploadModal && recipe && (
         <ImageUploadModal
           isOpen={showImageUploadModal}
           onClose={() => setShowImageUploadModal(false)}
@@ -1370,6 +1448,7 @@ export default function RecipeDetailPage({
           recipeTitle={recipe?.title}
           recipeDescription={recipe?.description ?? undefined}
           recipeIngredients={ingredients.slice(0, 5).map(ing => ing.ingredient_name_nl)}
+          recipeId={recipe.id}
         />
       )}
 

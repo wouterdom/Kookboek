@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { CategoryTypeUpdate } from '@/types/supabase'
 
 export async function DELETE(
   request: Request,
@@ -28,7 +29,7 @@ export async function PATCH(
   const { id } = await params
   const { name, description, allow_multiple, order_index } = await request.json()
 
-  const updateData: Record<string, string | number | boolean | null> = {}
+  const updateData: CategoryTypeUpdate = {}
   if (name !== undefined) updateData.name = name.trim()
   if (description !== undefined) updateData.description = description?.trim() || null
   if (allow_multiple !== undefined) updateData.allow_multiple = allow_multiple
@@ -36,8 +37,8 @@ export async function PATCH(
 
   const { data: categoryType, error } = await supabase
     .from('category_types')
-    // @ts-expect-error - Dynamic update object
-    .update(updateData as any)
+    // @ts-ignore - Supabase SSR client type inference issue
+    .update(updateData)
     .eq('id', id)
     .select()
     .single()

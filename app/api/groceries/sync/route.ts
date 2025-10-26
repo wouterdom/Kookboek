@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { GroceryItemInsert } from '@/types/supabase'
 
 // POST /api/groceries/sync - Sync grocery items from weekly menu
 export async function POST(request: Request) {
@@ -54,20 +55,14 @@ export async function POST(request: Request) {
   }
 
   // Collect all ingredients from all recipes
-  const groceryItems: Array<{
-    name: string
-    amount: string | null
-    original_amount: string | null
-    from_recipe_id: string
-    from_weekmenu_id: string
-  }> = []
+  const groceryItems: GroceryItemInsert[] = []
 
-  menuItems.forEach(menuItem => {
+  menuItems.forEach((menuItem: any) => {
     if (!menuItem.recipe?.ingredients) return
 
-    const servingRatio = menuItem.servings / (menuItem.recipe.servings || 4)
+    const servingRatio = (menuItem.servings || 4) / (menuItem.recipe.servings_default || 4)
 
-    menuItem.recipe.ingredients.forEach(ingredient => {
+    menuItem.recipe.ingredients.forEach((ingredient: any) => {
       // Calculate scaled amount if needed
       let scaledAmount = ingredient.amount
 
@@ -86,8 +81,8 @@ export async function POST(request: Request) {
         name: ingredient.item,
         amount: scaledAmount,
         original_amount: ingredient.amount,
-        from_recipe_id: menuItem.recipe_id,
-        from_weekmenu_id: menuItem.id
+        from_recipe_id: menuItem.recipe_id || '',
+        from_weekmenu_id: menuItem.id || ''
       })
     })
   })
@@ -99,6 +94,7 @@ export async function POST(request: Request) {
   // Insert grocery items
   const { data: createdItems, error: insertError } = await supabase
     .from('grocery_items')
+    // @ts-ignore - Supabase SSR client type inference issue
     .insert(groceryItems)
     .select(`
       *,

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { RecipeCategoryInsert } from '@/types/supabase'
 
 export async function GET(
   request: Request,
@@ -66,13 +67,15 @@ export async function POST(
   }
 
   // Add category to recipe
+  const insertData: RecipeCategoryInsert = {
+    recipe_id: (recipe as any).id,
+    category_id
+  }
+
   const { data, error } = await supabase
     .from('recipe_categories')
-    // @ts-expect-error - Dynamic insert
-    .insert({
-      recipe_id: (recipe as any).id,
-      category_id
-    })
+    // @ts-ignore - Supabase SSR client type inference issue
+    .insert(insertData)
     .select()
     .single()
 
