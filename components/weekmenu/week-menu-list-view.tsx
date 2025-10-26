@@ -1,8 +1,9 @@
 "use client"
 
-import { X, Users } from "lucide-react"
+import { X, Users, ExternalLink } from "lucide-react"
 import { WeekMenuItemsByDay } from "@/lib/weekmenu-utils"
 import { getDayName } from "@/lib/weekmenu-utils"
+import Link from "next/link"
 
 interface WeekMenuListViewProps {
   groupedItems: WeekMenuItemsByDay
@@ -95,9 +96,22 @@ export function WeekMenuListView({
 
               {/* Recipe Info */}
               <div className="flex-1 flex flex-col gap-1">
-                <span className={`text-sm font-medium ${item.is_completed ? 'line-through' : ''} ${isUnassigned ? 'text-yellow-800' : 'text-[oklch(var(--foreground))]'}`}>
-                  {title}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-sm font-medium flex-1 ${item.is_completed ? 'line-through' : ''} ${isUnassigned ? 'text-yellow-800' : 'text-[oklch(var(--foreground))]'}`}>
+                    {title}
+                  </span>
+
+                  {/* Link icon - only shown for actual recipes */}
+                  {item.recipe_id && item.recipe?.slug && (
+                    <Link
+                      href={`/recipes/${item.recipe.slug}`}
+                      className="flex-shrink-0 p-1 hover:bg-[oklch(var(--muted))] rounded transition-colors group"
+                      title="Open recept"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-[oklch(var(--primary))] transition-colors" />
+                    </Link>
+                  )}
+                </div>
 
                 {/* Servings Selector */}
                 {onServingsChange && (

@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { X, Users, GripVertical } from "lucide-react"
+import { X, Users, GripVertical, ExternalLink } from "lucide-react"
 import { WeeklyMenuItemWithRecipe } from "@/types/supabase"
 import Link from "next/link"
 
@@ -52,40 +52,52 @@ export function WeekMenuSortableItem({
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, touchAction: 'none' }}
+      style={style}
       {...attributes}
-      className="bg-white border border-[oklch(var(--border))] rounded-lg p-2 hover:shadow-md transition-all relative"
+      className="bg-white border border-[oklch(var(--border))] rounded-lg p-2 hover:shadow-md transition-all"
     >
-      {/* Draggable overlay - covers entire card for dragging */}
-      <div
-        {...listeners}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing z-0"
-      />
-
-      <div className="flex items-start gap-2 relative z-10">
-        {/* Drag indicator icon */}
-        <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-2">
+        {/* Drag handle - only this icon is draggable */}
+        <div
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none flex-shrink-0 mt-0.5 p-0.5 hover:bg-[oklch(var(--muted))] rounded transition-colors"
+          style={{ touchAction: 'none' }}
+        >
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {isCustomItem ? (
-            <div className="font-semibold text-xs mb-1.5 text-muted-foreground italic">
-              {title || 'Onbekend recept'}
+          {/* Title with link icon */}
+          <div className="flex items-start gap-1.5 mb-1.5">
+            <div className="flex-1 min-w-0">
+              {isCustomItem ? (
+                <div className="font-semibold text-xs text-muted-foreground italic">
+                  {title || 'Onbekend recept'}
+                </div>
+              ) : (
+                <div className="font-semibold text-xs">
+                  {title}
+                </div>
+              )}
             </div>
-          ) : (
-            <Link
-              href={`/recipes/${item.recipe.slug}`}
-              className="block relative z-20"
-            >
-              <div className="font-semibold text-xs mb-1.5 hover:text-[oklch(var(--primary))] transition-colors">
-                {title}
-              </div>
-            </Link>
-          )}
+
+            {/* Link icon - only shown for actual recipes */}
+            {!isCustomItem && item.recipe?.slug && (
+              <Link
+                href={`/recipes/${item.recipe.slug}`}
+                className="flex-shrink-0 p-0.5 hover:bg-[oklch(var(--muted))] rounded transition-colors group"
+                title="Open recept"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-[oklch(var(--primary))] transition-colors" />
+              </Link>
+            )}
+          </div>
 
           <div className="flex items-center justify-between gap-2">
             {/* Servings Selector */}
-            <div className="flex items-center gap-0.5 bg-[oklch(var(--muted))] rounded px-1 relative z-20">
+            <div className="flex items-center gap-0.5 bg-[oklch(var(--muted))] rounded px-1">
               <button
                 onClick={(e) => handleServingsChange(-1, e)}
                 disabled={item.servings <= 1}
@@ -109,7 +121,7 @@ export function WeekMenuSortableItem({
             {/* Remove Button */}
             <button
               onClick={handleRemove}
-              className="w-6 h-6 flex items-center justify-center border border-[oklch(var(--border))] rounded hover:bg-[oklch(var(--destructive))] hover:text-white hover:border-[oklch(var(--destructive))] transition-all flex-shrink-0 cursor-pointer relative z-20"
+              className="w-6 h-6 flex items-center justify-center border border-[oklch(var(--border))] rounded hover:bg-[oklch(var(--destructive))] hover:text-white hover:border-[oklch(var(--destructive))] transition-all flex-shrink-0 cursor-pointer"
               title="Verwijder"
             >
               <X className="h-2.5 w-2.5" />

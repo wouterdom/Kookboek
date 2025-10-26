@@ -36,10 +36,9 @@ export function WeekMenuDayColumn({
       </div>
       <div
         ref={setNodeRef}
-        className={`${compact ? 'min-h-[80px]' : 'min-h-[200px]'} p-2 space-y-2 transition-all ${
-          isOver ? 'bg-primary/10 ring-2 ring-primary' : ''
+        className={`${compact ? 'min-h-[120px]' : 'min-h-[280px]'} p-2 space-y-2 transition-all ${
+          isOver ? 'bg-primary/10 ring-2 ring-primary ring-inset' : 'bg-[oklch(var(--muted))]/20'
         }`}
-        style={{ touchAction: 'none' }}
       >
         <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
           {items.map(item => (
@@ -52,10 +51,16 @@ export function WeekMenuDayColumn({
           ))}
         </SortableContext>
 
-        {/* Extra drop space when items exist - makes it easier to drop */}
-        {items.length > 0 && !compact && (
-          <div className="h-20 flex items-center justify-center text-xs text-muted-foreground opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-            Sleep hier
+        {/* Large drop indicator - always visible for better UX */}
+        {!compact && (
+          <div className={`flex-1 min-h-[100px] flex items-center justify-center rounded-md border-2 border-dashed transition-all ${
+            isOver
+              ? 'border-primary bg-primary/5 text-primary'
+              : 'border-[oklch(var(--border))] text-muted-foreground'
+          }`}>
+            <span className="text-xs font-medium">
+              {isOver ? '↓ Plaats hier' : 'Sleep hier'}
+            </span>
           </div>
         )}
       </div>

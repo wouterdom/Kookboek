@@ -19,6 +19,7 @@ import {
   useSensors,
   closestCenter,
   rectIntersection,
+  pointerWithin,
 } from '@dnd-kit/core'
 import {
   getCurrentWeekMonday,
@@ -42,19 +43,19 @@ export default function WeekmenuPage() {
   const [overId, setOverId] = useState<string | null>(null)
   const { refreshBookmarks } = useWeekMenu()
 
-  // Configure sensors for drag & drop - separate for mouse and touch
+  // Configure sensors for drag & drop - optimized for both desktop and mobile
   const sensors = useSensors(
     useSensor(MouseSensor, {
-      // Desktop drag with mouse - reduced distance for better responsiveness
+      // Desktop drag with mouse - very responsive
       activationConstraint: {
-        distance: 5, // 5px of movement required before drag starts
+        distance: 3, // 3px of movement required before drag starts
       },
     }),
     useSensor(TouchSensor, {
-      // Mobile drag with touch
+      // Mobile drag with touch - optimized for better responsiveness
       activationConstraint: {
-        delay: 150, // 150ms hold before drag starts on touch
-        tolerance: 5,
+        delay: 100, // 100ms hold before drag starts on touch
+        tolerance: 5, // 5px tolerance for touch movement
       },
     })
   )
@@ -283,7 +284,7 @@ export default function WeekmenuPage() {
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={rectIntersection}
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
