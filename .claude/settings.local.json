@@ -2,7 +2,27 @@
   "permissions": {
     "allow": [
       "Bash(DATABASE_URL=\"postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres\" node:*)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres\" node -e:*)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:P93QBHIywFOImydjBtGspqyn7kYoGBQXwQKbZfgMNME=@192.168.1.63:5432/postgres\" node -e:*)",
+      "Read(//c/Users/wdom/Downloads/Server setup/7-Port-Management/**)",
+      "Read(//c/Users/wdom/Downloads/Server setup/6-App-Development/**)",
+      "Read(//c/Users/wdom/Downloads/Server setup/**)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(ssh:*)",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_console_messages",
+      "Bash(scp:*)",
+      "mcp__playwright__browser_network_requests",
+      "Bash(npm run dev:*)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_snapshot",
+      "Bash(git rm:*)",
+      "Bash(node sanitize-docs.js:*)",
+      "Bash(move sanitize-docs.js sanitize-docs.cjs)",
+      "Bash(node sanitize-docs.cjs:*)",
+      "Read(//c/Users/wdom/**)"
     ],
     "deny": [],
     "ask": []

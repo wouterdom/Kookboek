@@ -1,6 +1,6 @@
 [Unit]
 Description=Tailscale Serve Configuration for Kookboek App
-Documentation=https://github.com/your-repo/kookboek/docs/TAILSCALE-SUPABASE-TROUBLESHOOTING.md
+Documentation=https://github.com/your-repo/kookboek/docs/SUPABASE-TAILSCALE-COMPLETE-GUIDE.md
 After=network-online.target tailscaled.service docker.service
 Wants=network-online.target
 Requires=tailscaled.service docker.service

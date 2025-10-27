@@ -1,21 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { CategoriesByType, CategoryType, Category } from '@/types/supabase'
+import { CategoriesByType, CategoryType } from '@/types/supabase'
+
+export const revalidate = 300 // Cache for 5 minutes
 
 export async function GET() {
   const supabase = await createClient()
 
-  // Haal alle category types op
-  const { data: categoryTypes, error: typesError } = await supabase
-    .from('category_types')
-    .select('*')
-    .order('order_index')
-
-  if (typesError) {
-    return NextResponse.json({ error: typesError.message }, { status: 500 })
-  }
-
-  // Haal alle categorieën op met hun type
+  // Single optimized query: fetch categories with their type in one go
   const { data: categories, error: categoriesError } = await supabase
     .from('categories')
     .select(`
@@ -28,15 +20,37 @@ export async function GET() {
     return NextResponse.json({ error: categoriesError.message }, { status: 500 })
   }
 
-  // Groepeer categorieën per type
+  // Group categories by type
   const grouped: CategoriesByType = {}
 
-  categoryTypes.forEach((type: CategoryType) => {
-    grouped[type.slug] = {
-      type,
-      categories: categories.filter((cat: any) => cat.type_id === type.id)
+  categories.forEach((cat: any) => {
+    const categoryType = cat.category_type
+
+    if (!categoryType) return
+
+    if (!grouped[categoryType.slug]) {
+      grouped[categoryType.slug] = {
+        type: categoryType,
+        categories: []
+      }
     }
+
+    // Add category without the nested category_type to avoid duplication
+    const { category_type, ...categoryData } = cat
+    grouped[categoryType.slug].categories.push(categoryData)
   })
 
-  return NextResponse.json(grouped)
+  // Sort types by order_index
+  const sortedGrouped: CategoriesByType = {}
+  Object.entries(grouped)
+    .sort(([, a], [, b]) => (a.type.order_index || 0) - (b.type.order_index || 0))
+    .forEach(([slug, data]) => {
+      sortedGrouped[slug] = data
+    })
+
+  return NextResponse.json(sortedGrouped, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
+    }
+  })
 }

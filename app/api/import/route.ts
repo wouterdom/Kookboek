@@ -8,6 +8,75 @@ import { scrapeLibelleLekker, scrapeLibelleLekkerPublic, hasLibelleLekkerCredent
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
 
+/**
+ * Normalizes recipe instructions to ensure proper formatting with line breaks.
+ * Handles cases where AI returns literal \n or continuous text without proper spacing.
+ *
+ * @param instructions - Raw instruction text from AI
+ * @returns Normalized instruction text with proper line breaks
+ */
+function normalizeInstructions(instructions: string): string {
+  if (!instructions || instructions.trim().length === 0) {
+    return 'Geen bereidingswijze beschikbaar.'
+  }
+
+  let normalized = instructions.trim()
+
+  // Step 1: Replace literal \n with actual newlines
+  normalized = normalized.replace(/\\n/g, '\n')
+
+  // Step 2: Ensure numbered steps are on separate lines
+  // Use a global approach to catch all numbered steps
+  // Pattern: "text 2. " -> "text\n2. " (but not at start of string)
+  normalized = normalized.replace(/([^\n])(\s*)(\d+\.\s+)/g, (match, prevChar, spaces, numberDot) => {
+    // If the previous character is a digit followed by a dot, we're mid-number (e.g., "1.5 liters")
+    if (/\d/.test(prevChar)) {
+      return match // Keep as-is
+    }
+    return prevChar + '\n' + numberDot
+  })
+
+  // Step 3: Ensure bullet points are on separate lines
+  // Pattern: "text - " -> "text\n- "
+  normalized = normalized.replace(/([^\n])(\s*)(-\s+)/g, (match, prevChar, spaces, dash) => {
+    // Check if this is actually a bullet point (not a hyphen in a word like "niet-gekookt")
+    if (/[a-zA-Z]/.test(prevChar)) {
+      // Look ahead to see if there's a word after the dash
+      return prevChar + '\n' + dash
+    }
+    return match
+  })
+
+  // Step 4: Clean up excessive whitespace
+  // Remove multiple consecutive newlines (keep max 2 for paragraph breaks)
+  normalized = normalized.replace(/\n{3,}/g, '\n\n')
+
+  // Remove spaces at start/end of lines
+  normalized = normalized.split('\n').map(line => line.trim()).join('\n')
+
+  // Step 5: Ensure consistent spacing after numbers
+  // "1.Text" -> "1. Text"
+  normalized = normalized.replace(/^(\d+)\.(\S)/gm, '$1. $2')
+
+  // Step 6: Remove any leading newlines that may have been introduced
+  normalized = normalized.replace(/^\n+/, '')
+
+  // Step 7: Final validation - warn if instructions appear poorly formatted
+  const hasNumberedSteps = /^\d+\./m.test(normalized)
+  const hasBulletPoints = /^-\s/m.test(normalized)
+  const hasLineBreaks = normalized.includes('\n')
+
+  if (!hasLineBreaks && normalized.length > 100) {
+    console.warn('⚠️  Instructions may be poorly formatted (no line breaks detected):', normalized.substring(0, 100))
+  }
+
+  if (!hasNumberedSteps && !hasBulletPoints && normalized.length > 50) {
+    console.warn('⚠️  Instructions may lack structure (no numbered steps or bullets detected)')
+  }
+
+  return normalized
+}
+
 async function extractImageFromWebpage(html: string, url: string): Promise<string | null> {
   try {
     const $ = cheerio.load(html)
@@ -209,7 +278,14 @@ CRITICAL - THESE FIELDS ARE ABSOLUTELY REQUIRED:
 
 Other important rules:
 - All text MUST be in Dutch
-- INSTRUCTIONS: Format as numbered list (1. Step\n2. Step\n3. Step)
+- INSTRUCTIONS: Format as a numbered list with ACTUAL line breaks between each step. Each step should be on its own line.
+  Example format:
+  "1. Verwarm de oven voor op 180°C.
+  2. Snijd de groenten in stukjes.
+  3. Bak 30 minuten in de oven."
+
+  CRITICAL: Use REAL line breaks (newlines), NOT the text "\n". Each number should start on a new line.
+
 - SERVINGS: Extract if mentioned, otherwise use 4
 - DIFFICULTY: Return in English (easy/medium/hard)
 - INGREDIENT AMOUNTS: Extract exact amounts, use null if not specified
@@ -225,7 +301,10 @@ Example output (WITHOUT sections):
     { "amount": 500, "unit": "g", "name": "zoete aardappelen", "section": null },
     { "amount": 2, "unit": "el", "name": "olijfolie", "section": null }
   ],
-  "instructions": "1. Verwarm oven\n2. Snijd friet\n3. Bak 30 min"
+  "instructions": "1. Verwarm de oven voor op 200°C.
+2. Snijd de zoete aardappelen in frietjes.
+3. Meng met olijfolie, zout en peper.
+4. Bak 30 minuten in de oven tot goudbruin."
 }
 
 Example output (WITH sections):
@@ -240,7 +319,11 @@ Example output (WITH sections):
     { "amount": 100, "unit": "g", "name": "Pecorino Romano", "section": "Voor de saus" },
     { "amount": 150, "unit": "g", "name": "guanciale", "section": "Voor de saus" }
   ],
-  "instructions": "1. Kook pasta\n2. Maak saus\n3. Meng samen"
+  "instructions": "1. Kook de spaghetti volgens de verpakking.
+2. Bak de guanciale krokant in een pan.
+3. Klop de eieren met de geraspte kaas.
+4. Meng de pasta met het spek en het eigenmengsel.
+5. Serveer direct met extra kaas."
 }
 `
 
@@ -592,6 +675,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert recipe into database - be very lenient with data
+    // Normalize instructions to ensure proper formatting
+    const normalizedInstructions = normalizeInstructions(recipeData.instructions || '')
+
     const recipe: RecipeInsert = {
       title: recipeData.title || 'Geïmporteerd Recept',
       slug,
@@ -600,7 +686,7 @@ export async function POST(request: NextRequest) {
       cook_time: recipeData.cook_time || null,
       servings_default: recipeData.servings || 4, // Default to 4 if not found
       difficulty: recipeData.difficulty || null, // Should be in English now (easy/medium/hard)
-      content_markdown: recipeData.instructions || 'Geen bereidingswijze beschikbaar.',
+      content_markdown: normalizedInstructions,
       labels: null, // Deprecated - now using category system
       source_name: recipeData.source || null,
       source_url: recipeData.source_url || null,

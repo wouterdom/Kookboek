@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Upload, Heart, Filter, ChevronDown, Bookmark } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
+import { RecipeGridSkeleton } from "@/components/recipe-card-skeleton"
 import { ImportDialog } from "@/components/import-dialog"
 import { PdfImportButton } from "@/components/pdf-import-button"
 import { PdfImportProgress } from "@/components/pdf-import-progress"
@@ -11,145 +12,124 @@ import { CategoryTypeManagementModal } from "@/components/category-type-manageme
 import { CategoryLabelManagementModal } from "@/components/category-label-management-modal"
 import { Header } from "@/components/header"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
 import { Recipe, CategoriesByType, CategoryType } from "@/types/supabase"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 import { useWeekMenu } from "@/contexts/weekmenu-context"
+import { useRecipes } from "@/hooks/use-recipes"
 
 export default function HomePage() {
-  const [allRecipes, setAllRecipes] = useState<Recipe[]>([]) // Store all fetched recipes
-  const [recipes, setRecipes] = useState<Recipe[]>([]) // Display recipes (paginated)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQuery, setSearchQuery] = useState("") // User's input (instant)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("") // Debounced for API (delayed)
   const [showFavorites, setShowFavorites] = useState(false)
   const [showWeekmenu, setShowWeekmenu] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [categoriesByType, setCategoriesByType] = useState<CategoriesByType>({})
   const [isCategoryTypeModalOpen, setIsCategoryTypeModalOpen] = useState(false)
   const [labelManagementType, setLabelManagementType] = useState<CategoryType | null>(null)
 
-  // Pagination state
+  // Pagination state for infinite scroll
   const [currentPage, setCurrentPage] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
+  const [additionalRecipes, setAdditionalRecipes] = useState<Recipe[]>([]) // Recipes from page 1+
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [totalCount, setTotalCount] = useState(0)
 
   const PAGE_SIZE = 24
 
-  const supabase = createClient()
   const router = useRouter()
   const { bookmarkedRecipeIds } = useWeekMenu()
 
-  // Fetch all recipes from Supabase once
-  const loadAllRecipes = useCallback(async () => {
+  // Debounce search query (wait 400ms after user stops typing)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Use SWR for the first page (cached, instant on return)
+  const {
+    recipes: firstPageRecipes,
+    totalCount,
+    hasMore: hasMoreFromAPI,
+    isLoading,
+    mutate: refreshRecipes
+  } = useRecipes({
+    page: 0,
+    pageSize: PAGE_SIZE,
+    search: debouncedSearchQuery, // Use debounced query for API
+    favorites: showFavorites,
+    categoryIds: Array.from(selectedCategories),
+    weekmenuIds: Array.from(bookmarkedRecipeIds),
+    weekmenuActive: showWeekmenu
+  })
+
+  // Combine first page (from SWR cache) with additional pages
+  const allRecipes = [...firstPageRecipes, ...additionalRecipes]
+  const hasMore = currentPage === 0 ? hasMoreFromAPI : (currentPage + 1) * PAGE_SIZE < totalCount
+
+  // Load additional pages for infinite scroll (page 1+)
+  const loadMoreRecipes = useCallback(async (page: number) => {
+    if (page === 0) return // Page 0 is handled by SWR
+
     try {
-      setIsLoading(true)
+      setIsLoadingMore(true)
 
-      const { data, error } = await supabase
-        .from('recipes')
-        .select(`
-          *,
-          recipe_categories(
-            category:categories(
-              id,
-              name,
-              slug,
-              color,
-              type_id,
-              category_type:category_types(*)
-            )
-          )
-        `)
-        .order('created_at', { ascending: false })
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: PAGE_SIZE.toString(),
+      })
 
-      if (!error && data) {
-        setAllRecipes(data as any)
-      } else if (error) {
-        console.error('Error loading recipes:', error)
+      if (debouncedSearchQuery.trim()) {
+        params.set('search', debouncedSearchQuery.trim())
+      }
+
+      if (showFavorites) {
+        params.set('favorites', 'true')
+      }
+
+      if (selectedCategories.size > 0) {
+        params.set('categoryIds', Array.from(selectedCategories).join(','))
+      }
+
+      if (showWeekmenu) {
+        params.set('weekmenuIds', Array.from(bookmarkedRecipeIds).join(','))
+      }
+
+      const response = await fetch(`/api/recipes?${params}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        // Deduplicate recipes when appending new pages
+        setAdditionalRecipes(prev => {
+          const allExisting = new Set([...firstPageRecipes, ...prev].map(r => r.id))
+          const newRecipes = data.recipes.filter((r: Recipe) => !allExisting.has(r.id))
+          return [...prev, ...newRecipes]
+        })
+        setCurrentPage(page)
+      } else {
+        console.error('Error loading more recipes:', data.error)
       }
     } catch (error) {
-      console.error('Error loading recipes:', error)
+      console.error('Error loading more recipes:', error)
     } finally {
-      setIsLoading(false)
+      setIsLoadingMore(false)
     }
-  }, [supabase])
+  }, [debouncedSearchQuery, showFavorites, selectedCategories, showWeekmenu, bookmarkedRecipeIds, firstPageRecipes, PAGE_SIZE])
 
-  // Apply filters and pagination to all recipes
-  const filteredRecipes = useMemo(() => {
-    let filtered = allRecipes
-
-    // Apply search filter: search in title, description, source_name, source_normalized, and category names
-    if (searchQuery.trim()) {
-      const searchLower = searchQuery.toLowerCase()
-      filtered = filtered.filter(recipe => {
-        // Search in title, description, source_name, source_normalized
-        const titleMatch = recipe.title?.toLowerCase().includes(searchLower)
-        const descMatch = recipe.description?.toLowerCase().includes(searchLower)
-        const sourceNameMatch = (recipe as any).source_name?.toLowerCase().includes(searchLower)
-        const sourceNormalizedMatch = (recipe as any).source_normalized?.toLowerCase().includes(searchLower)
-
-        // Search in category names
-        const categoryNames = (recipe as any).recipe_categories?.map((rc: any) => rc.category?.name?.toLowerCase()) || []
-        const categoryMatch = categoryNames.some((name: string) => name?.includes(searchLower))
-
-        return titleMatch || descMatch || sourceNameMatch || sourceNormalizedMatch || categoryMatch
-      })
-    }
-
-    // Apply favorite filter
-    if (showFavorites) {
-      filtered = filtered.filter(recipe => recipe.is_favorite)
-    }
-
-    // Apply weekmenu filter
-    if (showWeekmenu) {
-      filtered = filtered.filter(recipe => bookmarkedRecipeIds.has(recipe.id))
-    }
-
-    // Filter by selected categories
-    if (selectedCategories.size > 0) {
-      filtered = filtered.filter(recipe => {
-        const recipeCategoryIds = (recipe as any).recipe_categories?.map((rc: any) => rc.category.id) || []
-        return Array.from(selectedCategories).some(catId => recipeCategoryIds.includes(catId))
-      })
-    }
-
-    return filtered
-  }, [allRecipes, searchQuery, showFavorites, showWeekmenu, selectedCategories, bookmarkedRecipeIds])
-
-  // Apply pagination to filtered recipes
+  // Reset additional pages and pagination when filters change
+  // SWR will automatically refetch page 0
   useEffect(() => {
-    setTotalCount(filteredRecipes.length)
-
-    // Reset to first page when filters change
+    setAdditionalRecipes([])
     setCurrentPage(0)
-
-    // Get first page of results
-    const firstPageResults = filteredRecipes.slice(0, PAGE_SIZE)
-    setRecipes(firstPageResults)
-
-    // Check if there's more data
-    setHasMore(filteredRecipes.length > PAGE_SIZE)
-  }, [filteredRecipes])
+  }, [debouncedSearchQuery, showFavorites, selectedCategories, showWeekmenu, bookmarkedRecipeIds])
 
   // Load more recipes for infinite scroll
   const loadMore = useCallback(() => {
     if (isLoadingMore || !hasMore || isLoading) return
-
-    setIsLoadingMore(true)
-    const nextPage = currentPage + 1
-    const startIdx = nextPage * PAGE_SIZE
-    const endIdx = startIdx + PAGE_SIZE
-
-    const nextPageResults = filteredRecipes.slice(startIdx, endIdx)
-
-    setRecipes(prev => [...prev, ...nextPageResults])
-    setCurrentPage(nextPage)
-    setHasMore(endIdx < filteredRecipes.length)
-    setIsLoadingMore(false)
-  }, [isLoadingMore, hasMore, isLoading, currentPage, filteredRecipes])
+    loadMoreRecipes(currentPage + 1)
+  }, [isLoadingMore, hasMore, isLoading, currentPage, loadMoreRecipes])
 
   // Load categories grouped by type
   const loadCategories = useCallback(async () => {
@@ -164,11 +144,10 @@ export default function HomePage() {
     }
   }, [])
 
-  // Load all recipes and categories on mount
+  // Load categories on mount (recipes are loaded by the filter effect)
   useEffect(() => {
-    loadAllRecipes()
     loadCategories()
-  }, [loadAllRecipes, loadCategories])
+  }, [loadCategories])
 
   // Infinite scroll - detect when user reaches bottom
   useEffect(() => {
@@ -188,13 +167,19 @@ export default function HomePage() {
   }, [loadMore])
 
   const handleFavoriteChange = (id: string, isFavorite: boolean) => {
-    setAllRecipes(prev => prev.map(r =>
+    // Update additional recipes (pages 1+)
+    setAdditionalRecipes(prev => prev.map(r =>
       r.id === id ? { ...r, is_favorite: isFavorite } : r
     ))
+    // Refresh SWR cache for first page
+    refreshRecipes()
   }
 
   const handleDelete = (id: string) => {
-    setAllRecipes(prev => prev.filter(r => r.id !== id))
+    // Remove from additional recipes
+    setAdditionalRecipes(prev => prev.filter(r => r.id !== id))
+    // Refresh SWR cache for first page
+    refreshRecipes()
   }
 
   const toggleCategory = (categoryId: string) => {
@@ -254,6 +239,12 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {/* Show subtle loading indicator when debouncing */}
+            {searchQuery !== debouncedSearchQuery && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
           </div>
 
           {/* Filter Bar - Aparte dropdowns per categorietype */}
@@ -320,26 +311,29 @@ export default function HomePage() {
                             Geen categorieën beschikbaar
                           </div>
                         ) : (
-                          typeData.categories.map(category => (
-                            <label
-                              key={category.id}
-                              className="flex items-center gap-2 text-sm cursor-pointer hover:text-[oklch(var(--primary))] group py-1"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedCategories.has(category.id)}
-                                onChange={() => toggleCategory(category.id)}
-                                className="checkbox h-4 w-4"
-                              />
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="h-3 w-3 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: category.color }}
+                          // Sort categories alphabetically by name
+                          [...typeData.categories]
+                            .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+                            .map(category => (
+                              <label
+                                key={category.id}
+                                className="flex items-center gap-2 text-sm cursor-pointer hover:text-[oklch(var(--primary))] group py-1"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCategories.has(category.id)}
+                                  onChange={() => toggleCategory(category.id)}
+                                  className="checkbox h-4 w-4"
                                 />
-                                <span className="truncate">{category.name}</span>
-                              </span>
-                            </label>
-                          ))
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="h-3 w-3 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: category.color }}
+                                  />
+                                  <span className="truncate">{category.name}</span>
+                                </span>
+                              </label>
+                            ))
                         )}
                       </div>
 
@@ -387,7 +381,7 @@ export default function HomePage() {
           <div className="text-sm text-[oklch(var(--muted-foreground))]">
             {totalCount > 0 ? (
               <>
-                Toon <span className="font-semibold">{recipes.length}</span> van <span className="font-semibold">{totalCount}</span> recepten
+                Toon <span className="font-semibold">{allRecipes.length}</span> van <span className="font-semibold">{totalCount}</span> recepten
               </>
             ) : (
               <span>Geen recepten gevonden</span>
@@ -397,18 +391,8 @@ export default function HomePage() {
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="card animate-pulse">
-                <div className="h-48 bg-gray-200" />
-                <div className="p-4">
-                  <div className="h-6 bg-gray-200 rounded mb-2" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : recipes.length === 0 ? (
+          <RecipeGridSkeleton count={PAGE_SIZE} />
+        ) : allRecipes.length === 0 ? (
           <div className="py-12 text-center text-[oklch(var(--muted-foreground))]">
             <p className="text-lg">
               {searchQuery || showFavorites || showWeekmenu || selectedCategories.size > 0
@@ -419,7 +403,7 @@ export default function HomePage() {
         ) : (
           <>
             <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr">
-              {recipes.map((recipe) => {
+              {allRecipes.map((recipe) => {
                 // Extract categories from recipe_categories
                 const recipeCategories = (recipe as any).recipe_categories?.map((rc: any) => ({
                   id: rc.category.id,
@@ -451,7 +435,7 @@ export default function HomePage() {
             )}
 
             {/* End of Results */}
-            {!hasMore && recipes.length > 0 && (
+            {!hasMore && allRecipes.length > 0 && (
               <div className="flex justify-center py-8">
                 <p className="text-sm text-muted-foreground">
                   Alle recepten geladen
@@ -467,7 +451,7 @@ export default function HomePage() {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         onSuccess={() => {
-          loadAllRecipes() // Reload recipes after successful import
+          refreshRecipes() // Refresh SWR cache
         }}
       />
 
@@ -477,7 +461,7 @@ export default function HomePage() {
         onClose={() => setIsCategoryTypeModalOpen(false)}
         onUpdate={() => {
           loadCategories()
-          loadAllRecipes()
+          refreshRecipes() // Refresh SWR cache
         }}
       />
 
@@ -488,7 +472,7 @@ export default function HomePage() {
           onClose={() => setLabelManagementType(null)}
           onUpdate={() => {
             loadCategories()
-            loadAllRecipes()
+            refreshRecipes() // Refresh SWR cache
           }}
           categoryType={labelManagementType}
         />

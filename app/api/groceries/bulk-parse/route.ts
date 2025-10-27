@@ -102,10 +102,11 @@ Geef ALLEEN de JSON array terug, zonder extra tekst of markdown.`
       )
     }
 
-    // Categorize each item
-    const items = parsedItems.map((item) => {
-      // Get the category slug
-      const categorySlug = categorizeIngredient(item.name, categories || [])
+    // Categorize each item (process sequentially to avoid overwhelming AI)
+    const items = []
+    for (const item of parsedItems) {
+      // Get the category slug using AI
+      const categorySlug = await categorizeIngredient(item.name, categories || [])
 
       // Get the category ID from the slug
       const categoryId = getCategoryIdFromSlug(categorySlug, categories || [])
@@ -113,12 +114,12 @@ Geef ALLEEN de JSON array terug, zonder extra tekst of markdown.`
       // Fallback to first category if no match
       const finalCategoryId = categoryId || ((categories && categories[0]) ? (categories[0] as any).id : "") || ""
 
-      return {
+      items.push({
         name: item.name,
         amount: item.amount || undefined,
         category_id: finalCategoryId
-      }
-    })
+      })
+    }
 
     return NextResponse.json({ items })
   } catch (error) {

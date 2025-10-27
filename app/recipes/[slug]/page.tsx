@@ -932,7 +932,7 @@ export default function RecipeDetailPage({
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Categorieën:</h3>
               {recipe && (
                 <RecipeCategorySelector
-                  recipeId={recipe.id}
+                  recipeSlug={slug}
                   selectedCategoryIds={recipeCategoryIds}
                   onUpdate={loadRecipe}
                 />

@@ -30,6 +30,7 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
   const [displayCategories, setDisplayCategories] = useState(categories)
   const [showIngredientPopup, setShowIngredientPopup] = useState(false)
   const [recipeWithIngredients, setRecipeWithIngredients] = useState<any>(null)
+  const [imageLoaded, setImageLoaded] = useState(false)
   const supabase = createClient()
   const router = useRouter()
   const { isRecipeInWeekMenu, addToWeekMenu, removeFromWeekMenu, isLoading: isBookmarkLoading } = useWeekMenu()
@@ -214,13 +215,23 @@ export function RecipeCard({ recipe, categories = [], onFavoriteChange, onDelete
       <div className="card group h-full flex flex-col relative">
         <div className="relative">
           <Link href={`/recipes/${recipe.slug}`} className="block">
-            <div className="relative h-[200px] w-full">
+            <div className="relative h-[200px] w-full bg-gray-200">
+              {/* Skeleton loader - shown while image loads */}
+              {!imageLoaded && (
+                <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse" />
+              )}
+
+              {/* Actual image - lazy loaded */}
               <Image
                 src={recipe.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop"}
                 alt={recipe.title}
                 fill
-                className="recipe-card-image object-cover"
+                className={`recipe-card-image object-cover transition-opacity duration-300 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
                 unoptimized
+                loading="lazy"
+                onLoad={() => setImageLoaded(true)}
               />
             </div>
           </Link>

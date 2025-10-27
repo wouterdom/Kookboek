@@ -75,10 +75,17 @@ const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest
 - Personal notes per recipe
 
 ## Environment Variables
+
+**SECURITY RULE**: NEVER include actual API keys, secrets, or credentials in documentation files (.md). Always reference `.env.local` file instead.
+
+Required variables (see `.env.local` for actual values):
 - NEXT_PUBLIC_SUPABASE_URL
 - NEXT_PUBLIC_SUPABASE_ANON_KEY
-- SUPABASE_SERVICE_KEY
+- SUPABASE_SERVICE_ROLE_KEY
 - GEMINI_API_KEY
+- NODE_TLS_REJECT_UNAUTHORIZED
+
+For server configuration details, see `docs/SUPABASE-TAILSCALE-COMPLETE-GUIDE.md`
 
 ## Local Development
 ```bash

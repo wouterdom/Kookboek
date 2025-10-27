@@ -159,10 +159,11 @@ Als bepaalde informatie niet duidelijk is uit de audio, doe je beste schatting.`
     // Import categorization function
     const { categorizeIngredient, getCategoryIdFromSlug } = await import('@/lib/ingredient-categorizer')
 
-    // Categorize each item
-    const categorizedItems = parsed.items.map((item: { name: string; amount?: string }) => {
-      // Get the category slug
-      const categorySlug = categorizeIngredient(item.name, categories || [])
+    // Categorize each item (process sequentially to avoid overwhelming AI)
+    const categorizedItems = []
+    for (const item of parsed.items) {
+      // Get the category slug using AI
+      const categorySlug = await categorizeIngredient(item.name, categories || [])
 
       // Get the category ID from the slug
       const categoryId = getCategoryIdFromSlug(categorySlug, categories || [])
@@ -170,12 +171,12 @@ Als bepaalde informatie niet duidelijk is uit de audio, doe je beste schatting.`
       // Fallback to first category if no match
       const finalCategoryId = categoryId || ((categories && categories[0]) ? (categories[0] as any).id : "") || ""
 
-      return {
+      categorizedItems.push({
         name: item.name,
         amount: item.amount || undefined,
         category_id: finalCategoryId
-      }
-    })
+      })
+    }
 
     return NextResponse.json({
       items: categorizedItems,

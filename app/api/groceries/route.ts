@@ -117,46 +117,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'items array is required and cannot be empty' }, { status: 400 })
     }
 
-    // Validate and prepare items
-    const insertData = items.map((item: any) => {
-      if (!item.name?.trim()) {
-        throw new Error('Each item must have a name')
-      }
+    // Validate and prepare items (process in batches for AI categorization)
+    const insertData: any[] = []
+    const BATCH_SIZE = 5 // Process 5 items at a time to avoid overwhelming AI
 
-      const data: {
-        name: string
-        amount?: string
-        original_amount?: string
-        category_id?: string
-        from_recipe_id?: string
-        from_weekmenu_id?: string
-      } = {
-        name: item.name.trim()
-      }
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE)
+      const batchResults = await Promise.all(
+        batch.map(async (item: any) => {
+          if (!item.name?.trim()) {
+            throw new Error('Each item must have a name')
+          }
 
-      if (item.amount) {
-        data.amount = item.amount
-        data.original_amount = item.original_amount || item.amount
-      }
-      // Auto-categorize if no category_id provided
-      if (item.category_id) {
-        data.category_id = item.category_id
-      } else if (categories && categories.length > 0) {
-        const categorySlug = categorizeIngredient(item.name, categories)
-        const categoryId = getCategoryIdFromSlug(categorySlug, categories)
-        if (categoryId) {
-          data.category_id = categoryId
-        }
-      }
-      if (item.from_recipe_id) {
-        data.from_recipe_id = item.from_recipe_id
-      }
-      if (item.from_weekmenu_id) {
-        data.from_weekmenu_id = item.from_weekmenu_id
-      }
+          const data: {
+            name: string
+            amount?: string
+            original_amount?: string
+            category_id?: string
+            from_recipe_id?: string
+            from_weekmenu_id?: string
+          } = {
+            name: item.name.trim()
+          }
 
-      return data
-    })
+          if (item.amount) {
+            data.amount = item.amount
+            data.original_amount = item.original_amount || item.amount
+          }
+          // Auto-categorize if no category_id provided
+          if (item.category_id) {
+            data.category_id = item.category_id
+          } else if (categories && categories.length > 0) {
+            const categorySlug = await categorizeIngredient(item.name, categories)
+            const categoryId = getCategoryIdFromSlug(categorySlug, categories)
+            if (categoryId) {
+              data.category_id = categoryId
+            }
+          }
+          if (item.from_recipe_id) {
+            data.from_recipe_id = item.from_recipe_id
+          }
+          if (item.from_weekmenu_id) {
+            data.from_weekmenu_id = item.from_weekmenu_id
+          }
+
+          return data
+        })
+      )
+      insertData.push(...batchResults)
+    }
 
     const { data: insertedItems, error } = await supabase
       .from('grocery_items')
@@ -203,7 +212,7 @@ export async function POST(request: Request) {
     if (category_id) {
       insertData.category_id = category_id
     } else if (categories && categories.length > 0) {
-      const categorySlug = categorizeIngredient(name, categories)
+      const categorySlug = await categorizeIngredient(name, categories)
       const categoryId = getCategoryIdFromSlug(categorySlug, categories)
       if (categoryId) {
         insertData.category_id = categoryId

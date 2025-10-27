@@ -1,18 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, Plus, Tag } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { X, Plus, Tag, Search } from "lucide-react"
 import { Category, CategoryType, CategoriesByType } from "@/types/supabase"
 import { getCategoryStyle } from "@/lib/colors"
 
 interface RecipeCategorySelectorProps {
-  recipeId: string
+  recipeSlug: string
   selectedCategoryIds: string[]
   onUpdate: () => void
 }
 
 export function RecipeCategorySelector({
-  recipeId,
+  recipeSlug,
   selectedCategoryIds,
   onUpdate
 }: RecipeCategorySelectorProps) {
@@ -22,6 +22,7 @@ export function RecipeCategorySelector({
     new Set(selectedCategoryIds)
   )
   const [isSaving, setIsSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     loadCategories()
@@ -30,6 +31,13 @@ export function RecipeCategorySelector({
   useEffect(() => {
     setSelectedCategories(new Set(selectedCategoryIds))
   }, [selectedCategoryIds])
+
+  useEffect(() => {
+    // Clear search when modal opens
+    if (isOpen) {
+      setSearchQuery('')
+    }
+  }, [isOpen])
 
   const loadCategories = async () => {
     try {
@@ -56,29 +64,18 @@ export function RecipeCategorySelector({
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      // Get current categories from database
-      const currentResponse = await fetch(`/api/recipes/${recipeId}/categories`)
-      const currentCategories = currentResponse.ok ? await currentResponse.json() : []
-      const currentIds = new Set(currentCategories.map((c: any) => c.category_id))
-
-      // Determine what to add and remove
-      const toAdd = Array.from(selectedCategories).filter(id => !currentIds.has(id))
-      const toRemove = Array.from(currentIds).filter((id): id is string => !selectedCategories.has(id as string))
-
-      // Add new categories
-      for (const categoryId of toAdd) {
-        await fetch(`/api/recipes/${recipeId}/categories`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category_id: categoryId })
+      // Send all selected category IDs in a single batch request
+      const response = await fetch(`/api/recipes/${recipeSlug}/categories`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category_ids: Array.from(selectedCategories)
         })
-      }
+      })
 
-      // Remove unchecked categories
-      for (const categoryId of toRemove) {
-        await fetch(`/api/recipes/${recipeId}/categories/${categoryId}`, {
-          method: 'DELETE'
-        })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update categories')
       }
 
       setIsOpen(false)
@@ -102,6 +99,30 @@ export function RecipeCategorySelector({
     })
     return selected
   }
+
+  // Filter categories based on search query
+  const filteredCategoriesByType = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return categoriesByType
+    }
+
+    const query = searchQuery.toLowerCase()
+    const filtered: CategoriesByType = {}
+
+    Object.entries(categoriesByType).forEach(([typeSlug, typeData]) => {
+      const matchingCategories = typeData.categories.filter(cat =>
+        cat.name.toLowerCase().includes(query)
+      )
+
+      // Always include the type, even if no categories match
+      filtered[typeSlug] = {
+        type: typeData.type,
+        categories: matchingCategories
+      }
+    })
+
+    return filtered
+  }, [categoriesByType, searchQuery])
 
   return (
     <div className="relative">
@@ -143,30 +164,48 @@ export function RecipeCategorySelector({
 
       {/* Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Categorieën Selecteren</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-2xl max-h-[90vh] rounded-lg bg-white shadow-xl flex flex-col">
+            {/* Header - Fixed */}
+            <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b">
+              <h2 className="text-lg font-bold">Categorieën Selecteren</h2>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-full p-2 hover:bg-gray-100"
+                className="rounded-full p-1.5 hover:bg-gray-100"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Category selection by type */}
-            <div className="space-y-6 mb-6">
-              {Object.entries(categoriesByType).map(([typeSlug, typeData]) => (
-                <div key={typeSlug} className="space-y-3">
-                  <h3 className="font-medium text-gray-900">
+            {/* Search Input - Fixed */}
+            <div className="flex-shrink-0 px-4 pt-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Zoek categorieën..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Category selection by type - Scrollable */}
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              <div className="space-y-4">
+              {Object.entries(filteredCategoriesByType).map(([typeSlug, typeData]) => (
+                <div key={typeSlug} className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-900">
                     {typeData.type.name}
                   </h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {typeData.categories.length === 0 ? (
-                      <p className="text-sm text-gray-500 col-span-2">
-                        Geen categorieën beschikbaar
+                      <p className="text-xs text-gray-500 col-span-2 italic py-1">
+                        {searchQuery.trim()
+                          ? `Geen resultaten voor "${searchQuery}"`
+                          : 'Geen categorieën beschikbaar'
+                        }
                       </p>
                     ) : (
                       typeData.categories.map(category => {
@@ -174,22 +213,22 @@ export function RecipeCategorySelector({
                         return (
                           <label
                             key={category.id}
-                            className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className="flex items-center gap-2 rounded-lg border p-2 cursor-pointer hover:bg-gray-50 transition-colors"
                           >
                             <input
                               type="checkbox"
                               checked={selectedCategories.has(category.id)}
                               onChange={() => toggleCategory(category.id)}
-                              className="checkbox h-4 w-4"
+                              className="checkbox h-3.5 w-3.5"
                             />
                             <span
-                              className="h-3 w-3 rounded-full flex-shrink-0"
+                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                               style={{
                                 backgroundColor: style.backgroundColor,
                                 border: `2px solid ${style.borderColor}`
                               }}
                             />
-                            <span className="text-sm truncate">{category.name}</span>
+                            <span className="text-xs truncate">{category.name}</span>
                           </label>
                         )
                       })
@@ -197,20 +236,21 @@ export function RecipeCategorySelector({
                   </div>
                 </div>
               ))}
+              </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            {/* Actions - Fixed Footer */}
+            <div className="flex-shrink-0 flex gap-2 p-3 border-t bg-white rounded-b-lg">
               <button
                 onClick={() => setIsOpen(false)}
-                className="btn btn-outline btn-md"
+                className="btn btn-outline text-sm px-4 py-2 flex-1"
                 disabled={isSaving}
               >
                 Annuleren
               </button>
               <button
                 onClick={handleSave}
-                className="btn btn-primary btn-md"
+                className="btn btn-primary text-sm px-4 py-2 flex-1"
                 disabled={isSaving}
               >
                 {isSaving ? 'Opslaan...' : 'Opslaan'}

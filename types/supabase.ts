@@ -40,6 +40,10 @@ export type GroceryItem = DatabaseType['public']['Tables']['grocery_items']['Row
 export type GroceryItemInsert = DatabaseType['public']['Tables']['grocery_items']['Insert']
 export type GroceryItemUpdate = DatabaseType['public']['Tables']['grocery_items']['Update']
 
+export type RecipeImage = DatabaseType['public']['Tables']['recipe_images']['Row']
+export type RecipeImageInsert = DatabaseType['public']['Tables']['recipe_images']['Insert']
+export type RecipeImageUpdate = DatabaseType['public']['Tables']['recipe_images']['Update']
+
 // Extended types with relations
 export type CategoryWithType = Category & {
   category_type: CategoryType

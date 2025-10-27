@@ -1,160 +1,123 @@
 /**
  * Ingredient Categorizer
- * Auto-categorizes ingredients based on keyword matching
+ * AI-powered intelligent categorization of grocery ingredients
  */
 
-export interface CategoryKeywords {
-  slug: string
-  keywords: string[]
+import { GoogleGenerativeAI } from '@google/generative-ai'
+
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '')
+
+// In-memory cache for AI categorizations (lasts for server lifetime)
+const categorizationCache = new Map<string, string>()
+
+// Category information for AI prompt
+const CATEGORY_INFO = {
+  'groenten-fruit': 'Groenten & Fruit - All vegetables, fruits, mushrooms, salads, fresh produce',
+  'zuivel-eieren': 'Zuivel & Eieren - Dairy products, milk, cheese, yogurt, eggs, butter, cream',
+  'brood-bakkerij': 'Brood & Bakkerij - Bread, bakery items, crackers, toast, croissants',
+  'vlees-vis': 'Vlees & Vis - Meat, poultry, fish, seafood, cold cuts, sausages',
+  'pasta-rijst': 'Pasta, Rijst & Granen - Pasta, rice, noodles, grains, cereals, couscous, quinoa',
+  'conserven': 'Conserven & Potten - Canned goods, jars, sauces, condiments, spreads, preserves',
+  'kruiden': 'Kruiden & Specerijen - Herbs, spices, seasonings, salt, pepper, bouillon, baking ingredients',
+  'dranken': 'Dranken - Beverages, water, juice, soda, coffee, tea, alcohol, wine, beer',
+  'diepvries': 'Diepvries - Frozen foods, ice cream, frozen vegetables, frozen meals, frozen fries',
+  'schoonmaak': 'Schoonmaak & Non-food - Cleaning supplies, toiletries, household items, pet food, paper products',
+  'overige': 'Overige - Other items that don\'t fit in above categories'
 }
 
-// Keyword mappings for auto-categorization
-const CATEGORY_KEYWORDS: CategoryKeywords[] = [
-  {
-    slug: 'groenten-fruit',
-    keywords: [
-      'aardappel', 'wortel', 'ui', 'knoflook', 'tomaat', 'paprika', 'courgette',
-      'aubergine', 'broccoli', 'bloemkool', 'prei', 'sla', 'andijvie', 'spinazie',
-      'appel', 'peer', 'banaan', 'sinaasappel', 'citroen', 'limoen', 'mango',
-      'ananas', 'aardbei', 'frambo', 'bes', 'druif', 'perzik', 'abrikoos',
-      'komkom', 'radijs', 'rode kool', 'witte kool', 'Chinese kool', 'paddenstoel',
-      'champignon', 'shiitake', 'portobello', 'selderij', 'venkel', 'pompoen',
-      'biet', 'pastinaak', 'snijbiet', 'rucola', 'veldsla', 'ijsbergsla'
-    ]
-  },
-  {
-    slug: 'zuivel-eieren',
-    keywords: [
-      'melk', 'volle melk', 'halfvolle melk', 'magere melk', 'room', 'slagroom',
-      'crème fraîche', 'zure room', 'kwark', 'yoghurt', 'Griekse yoghurt',
-      'karnemelk', 'boter', 'margarine', 'kaas', 'geitenkaas', 'brie', 'camembert',
-      'mozzarella', 'parmezaan', 'grana padano', 'cheddar', 'gouda', 'edammer',
-      'feta', 'hüttenkäse', 'ricotta', 'mascarpone', 'ei', 'eieren', 'eidooier',
-      'eiwit'
-    ]
-  },
-  {
-    slug: 'brood-bakkerij',
-    keywords: [
-      'brood', 'wit brood', 'volkoren', 'meergranen', 'stokbrood', 'baguette',
-      'ciabatta', 'focaccia', 'pita', 'tortilla', 'wrap', 'naan', 'croissant',
-      'krentenbol', 'rozijnenbrood', 'pistolet', 'broodje', 'bolletje', 'bagel',
-      'panini', 'toast', 'beschuit', 'knäckebröd', 'rijstwafel', 'crackers'
-    ]
-  },
-  {
-    slug: 'vlees-vis',
-    keywords: [
-      'kip', 'kipfilet', 'kippenbouten', 'kippendij', 'kippenvleugel', 'gehakt',
-      'rundergehakt', 'varkensgehakt', 'gemengd gehakt', 'biefstuk', 'entrecote',
-      'ossenhaas', 'rosbief', 'varkenshaas', 'speklap', 'spareribs', 'bacon',
-      'spek', 'ham', 'salami', 'chorizo', 'worst', 'rookworst', 'braadworst',
-      'zalm', 'zalmfilet', 'tonijn', 'kabeljauw', 'schelvis', 'schol', 'tong',
-      'forel', 'makreel', 'haring', 'sardine', 'garnaal', 'garnalen', 'gamba',
-      'kreeft', 'mosselen', 'inktvis', 'paling', 'vis', 'visfilet'
-    ]
-  },
-  {
-    slug: 'pasta-rijst',
-    keywords: [
-      'pasta', 'spaghetti', 'penne', 'fusilli', 'farfalle', 'tagliatelle',
-      'fettuccine', 'lasagne', 'cannelloni', 'ravioli', 'tortellini', 'macaroni',
-      'rigatoni', 'linguine', 'orecchiette', 'rijst', 'basmati', 'jasmijn',
-      'risotto', 'paella', 'zilvervlies', 'wilde rijst', 'couscous', 'quinoa',
-      'bulgur', 'polenta', 'gierst', 'boekweit', 'havermout', 'muesli', 'cornflakes',
-      'noedels', 'mihoen', 'bami', 'Chinese noedels', 'Japanse noedels', 'ramen',
-      'udon', 'soba'
-    ]
-  },
-  {
-    slug: 'conserven',
-    keywords: [
-      'blik', 'pot', 'conserven', 'tomatenpuree', 'passata', 'gepelde tomaten',
-      'tomatensaus', 'ketchup', 'mayonaise', 'mosterd', 'augurken', 'zilveruitjes',
-      'kappertjes', 'olijven', 'zongedroogde tomaten', 'ansjovis', 'tonijn in blik',
-      'maïs', 'kikkererwten', 'witte bonen', 'bruine bonen', 'kidneybonen',
-      'linzen', 'kokosmelk', 'pindakaas', 'notenpasta', 'jam', 'honing', 'siroop',
-      'appelstroop', 'hagelslag', 'vlokken', 'pasta saus', 'curry paste',
-      'sambal', 'sriracha', 'tabasco', 'worcester', 'sojasaus', 'vissaus',
-      'oestersaus', 'teriyakisaus', 'sweet chili', 'hoisin'
-    ]
-  },
-  {
-    slug: 'kruiden',
-    keywords: [
-      'zout', 'peper', 'zwarte peper', 'witte peper', 'paprikapoeder', 'kerrie',
-      'kurkuma', 'komijn', 'koriander', 'kaneel', 'nootmuskaat', 'kruidnagel',
-      'kardemom', 'gember', 'cayennepeper', 'chilipoeder', 'chilipeper', 'oregano',
-      'basilicum', 'tijm', 'rozemarijn', 'salie', 'dragon', 'peterselie', 'bieslook',
-      'dille', 'laurier', 'munt', 'verse kruiden', 'Italiaanse kruiden', 'bouillon',
-      'groentebouillon', 'kippenbouillon', 'runderbouillon', 'bouillonblokje',
-      'gelatine', 'vanille', 'vanillesuiker', 'bakpoeder', 'gist', 'agar', 'azijn',
-      'balsamico', 'witte wijn azijn', 'appelazijn', 'rijstazijn'
-    ]
-  },
-  {
-    slug: 'dranken',
-    keywords: [
-      'water', 'spa', 'bronwater', 'mineraalwater', 'bruisend', 'sap', 'sinaasappelsap',
-      'appelsap', 'vruchtensap', 'smoothie', 'thee', 'groene thee', 'zwarte thee',
-      'kruidenthee', 'koffie', 'espresso', 'cappuccino', 'melk', 'frisdrank', 'cola',
-      'fanta', 'sprite', 'seven-up', 'limonade', 'ice tea', 'sportdrank', 'energy drink',
-      'wijn', 'rode wijn', 'witte wijn', 'rosé', 'champagne', 'prosecco', 'bier',
-      'pils', 'witbier', 'alcoholvrij', 'port', 'sherry', 'likeur', 'cognac', 'whisky'
-    ]
-  },
-  {
-    slug: 'diepvries',
-    keywords: [
-      'diepvries', 'bevroren', 'vriesproduct', 'ijsblokjes', 'ijs', 'ijsje',
-      'roomijs', 'sorbet', 'diepvriespizza', 'diepvriesgroenten', 'diepvriesfruit',
-      'doperwten', 'sperziebonen', 'spinazie blokje', 'gemengde groenten',
-      'wokgroenten', 'friet', 'patat', 'croquetten', 'bitterballen', 'kipnuggets',
-      'vissticks', 'garnalen diepvries', 'zalmfilet bevroren'
-    ]
-  },
-  {
-    slug: 'schoonmaak',
-    keywords: [
-      'afwasmiddel', 'vaatwastablet', 'schoonmaakmiddel', 'allesreiniger',
-      'keukenrol', 'toiletpapier', 'tissues', 'keukendoeken', 'sponsen', 'dweil',
-      'wasmiddel', 'wasverzachter', 'bleek', 'toiletblok', 'wc-eend', 'glasreiniger',
-      'zeep', 'handzeep', 'shampoo', 'conditioner', 'douchegel', 'tandpasta',
-      'tandenborstel', 'scheerschuim', 'deodorant', 'luiers', 'babyvoeding',
-      'hondenvoer', 'kattenvoer', 'kaarsjes', 'batterijen', 'aluminiumfolie',
-      'bakpapier', 'huishoudfolie', 'vershoudfolie', 'plastic zakken', 'vuilniszakken'
-    ]
-  }
-]
-
 /**
- * Categorize an ingredient based on keyword matching
+ * Categorize an ingredient using AI
  * @param ingredientName - Name of the ingredient
  * @param categories - Available categories with their slugs
  * @returns Category slug or 'overige' if no match
  */
-export function categorizeIngredient(
+export async function categorizeIngredient(
   ingredientName: string,
-  categories?: Array<{ slug: string }>
-): string {
+  categories?: Array<{ slug: string; name?: string }>
+): Promise<string> {
   if (!ingredientName) return 'overige'
 
   const normalized = ingredientName.toLowerCase().trim()
 
-  // Try to match keywords
-  for (const category of CATEGORY_KEYWORDS) {
-    for (const keyword of category.keywords) {
-      if (normalized.includes(keyword.toLowerCase())) {
-        // Check if this category exists in the provided categories
-        if (categories && !categories.some(c => c.slug === category.slug)) {
-          continue
-        }
-        return category.slug
-      }
+  // Check cache first
+  if (categorizationCache.has(normalized)) {
+    const cached = categorizationCache.get(normalized)!
+    // Verify cached category still exists
+    if (!categories || categories.some(c => c.slug === cached)) {
+      return cached
     }
   }
 
-  return 'overige'
+  try {
+    // Build category list for AI
+    const availableCategories = categories
+      ? categories.map(c => `"${c.slug}"`).join(', ')
+      : Object.keys(CATEGORY_INFO).map(slug => `"${slug}"`).join(', ')
+
+    const categoryDescriptions = categories
+      ? categories.map(c => `- "${c.slug}": ${CATEGORY_INFO[c.slug as keyof typeof CATEGORY_INFO] || c.name || c.slug}`).join('\n')
+      : Object.entries(CATEGORY_INFO).map(([slug, desc]) => `- "${slug}": ${desc}`).join('\n')
+
+    const prompt = `You are a grocery categorization AI. Your task is to categorize grocery items into the correct category.
+
+Available categories:
+${categoryDescriptions}
+
+Rules:
+1. Return ONLY the category slug (e.g., "groenten-fruit")
+2. Choose the MOST APPROPRIATE category based on the ingredient type
+3. Consider common Dutch ingredient names and their variations
+4. For items with descriptors (e.g., "verse erwten", "bevroren doperwten"), focus on the base ingredient AND the descriptor:
+   - "verse erwten" → groenten-fruit (fresh vegetables)
+   - "erwten" → groenten-fruit (default to fresh/vegetable)
+   - "bevroren erwten" → diepvries (frozen foods)
+   - "selder" or "selderij" → groenten-fruit (vegetable)
+   - "verse peterselie" → groenten-fruit (fresh herbs are vegetables)
+   - "gedroogde peterselie" → kruiden (dried herbs are spices)
+5. If unsure, use "overige"
+6. Return ONLY the slug, no explanation, no quotes in your response
+
+Ingredient to categorize: "${ingredientName}"
+
+Category slug:`
+
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-flash-lite-latest' })
+    const result = await model.generateContent(prompt)
+    const response = result.response.text().trim().toLowerCase()
+
+    // Extract slug from response (remove quotes if present)
+    let categorySlug = response.replace(/['"]/g, '').trim()
+
+    // Validate that the returned slug is valid
+    const validSlugs = categories
+      ? categories.map(c => c.slug)
+      : Object.keys(CATEGORY_INFO)
+
+    if (!validSlugs.includes(categorySlug)) {
+      console.warn(`AI returned invalid category "${categorySlug}" for "${ingredientName}", using overige`)
+      categorySlug = 'overige'
+    }
+
+    // Cache the result
+    categorizationCache.set(normalized, categorySlug)
+
+    return categorySlug
+  } catch (error) {
+    console.error(`Error categorizing ingredient "${ingredientName}":`, error)
+    return 'overige'
+  }
+}
+
+/**
+ * Synchronous fallback categorization (returns Promise for compatibility)
+ * Uses cache or returns 'overige'
+ * @param ingredientName - Name of the ingredient
+ * @returns Category slug from cache or 'overige'
+ */
+export function categorizeIngredientSync(ingredientName: string): string {
+  if (!ingredientName) return 'overige'
+  const normalized = ingredientName.toLowerCase().trim()
+  return categorizationCache.get(normalized) || 'overige'
 }
 
 /**
@@ -172,19 +135,31 @@ export function getCategoryIdFromSlug(
 }
 
 /**
- * Batch categorize multiple ingredients
+ * Batch categorize multiple ingredients using AI
  * @param ingredients - Array of ingredient names
  * @param categories - Available categories
- * @returns Map of ingredient name to category slug
+ * @returns Promise resolving to Map of ingredient name to category slug
  */
-export function batchCategorize(
+export async function batchCategorize(
   ingredients: string[],
   categories?: Array<{ slug: string }>
-): Map<string, string> {
+): Promise<Map<string, string>> {
   const result = new Map<string, string>()
 
-  for (const ingredient of ingredients) {
-    result.set(ingredient, categorizeIngredient(ingredient, categories))
+  // Process in batches to avoid overwhelming AI
+  const BATCH_SIZE = 5
+  for (let i = 0; i < ingredients.length; i += BATCH_SIZE) {
+    const batch = ingredients.slice(i, i + BATCH_SIZE)
+    const batchResults = await Promise.all(
+      batch.map(async (ingredient) => ({
+        ingredient,
+        category: await categorizeIngredient(ingredient, categories)
+      }))
+    )
+
+    batchResults.forEach(({ ingredient, category }) => {
+      result.set(ingredient, category)
+    })
   }
 
   return result

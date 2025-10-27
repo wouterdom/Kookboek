@@ -2,19 +2,19 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
-import { X, Upload, Image as ImageIcon, Loader2, Sparkles, Star, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Upload, Image as ImageIcon, Loader2, Sparkles, Star, Trash2, ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ConfirmModal, Modal } from './modal'
+import type { RecipeImage, RecipeImageUpdate } from '@/types/supabase'
 
-type RecipeImage = {
-  id: string
-  recipe_id: string
-  image_url: string
-  is_primary: boolean | null
-  display_order: number | null
-  created_at: string | null
-  updated_at: string | null
+type PendingImage = {
+  url: string
+  path: string // Storage path for cleanup
+  tempId: string
+  isPending: true
 }
+
+type CombinedImage = RecipeImage | PendingImage
 
 interface ImageUploadModalProps {
   isOpen: boolean
@@ -44,13 +44,20 @@ export function ImageUploadModal({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [generatingAI, setGeneratingAI] = useState(false)
   const [images, setImages] = useState<RecipeImage[]>([])
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const [pendingPrimaryId, setPendingPrimaryId] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [imageToDelete, setImageToDelete] = useState<string | null>(null)
   const [modalConfig, setModalConfig] = useState({ isOpen: false, message: '', type: 'info' as 'info' | 'success' | 'error' | 'warning' })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+
+  // Combined list of images (existing + pending)
+  const allImages: CombinedImage[] = [...images, ...pendingImages]
 
   // Fetch images for this recipe
   const fetchImages = useCallback(async () => {
@@ -78,8 +85,26 @@ export function ImageUploadModal({
   useEffect(() => {
     if (isOpen) {
       fetchImages()
+      // Clear pending images when modal opens
+      setPendingImages([])
+      setPendingPrimaryId(null)
     }
   }, [isOpen, fetchImages])
+
+  // Delete image from storage
+  const deleteFromStorage = async (url: string) => {
+    try {
+      // Extract path from URL
+      const urlObj = new URL(url)
+      const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/recipe-images\/(.+)/)
+      if (pathMatch && pathMatch[1]) {
+        const path = decodeURIComponent(pathMatch[1])
+        await supabase.storage.from('recipe-images').remove([path])
+      }
+    } catch (error) {
+      console.error('Error deleting from storage:', error)
+    }
+  }
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -91,7 +116,6 @@ export function ImageUploadModal({
       return
     }
 
-    // Upload to server
     setUploading(true)
     setUploadProgress(0)
 
@@ -101,7 +125,6 @@ export function ImageUploadModal({
       formData.append('recipeSlug', recipeSlug)
       formData.append('recipeId', recipeId)
 
-      // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -123,38 +146,26 @@ export function ImageUploadModal({
       if (response.ok) {
         const data = await response.json()
 
-        // Check if this URL already exists for this recipe
-        const existingImage = images.find(img => img.image_url === data.url)
+        // Check if URL already exists
+        const existsInImages = images.some(img => img.image_url === data.url)
+        const existsInPending = pendingImages.some(img => img.url === data.url)
 
-        if (!existingImage) {
-          // Add to recipe_images table only if it doesn't exist
-          const isPrimary = images.length === 0 // First image is primary
-          // @ts-ignore - Supabase type inference issue
-          const { error } = await supabase
-            .from('recipe_images')
-            // @ts-ignore - Supabase type inference issue
-            .insert({
-              recipe_id: recipeId,
-              image_url: data.url,
-              is_primary: isPrimary,
-              display_order: images.length
-            })
-
-          if (error) {
-            console.error('Error saving image to database:', error)
-          } else {
-            // Refresh images
-            await fetchImages()
-            if (isPrimary) {
-              onUpload(data.url)
-            }
+        if (!existsInImages && !existsInPending) {
+          // Add to pending images (NOT to database yet)
+          const newPending: PendingImage = {
+            url: data.url,
+            path: data.path,
+            tempId: `temp-${Date.now()}`,
+            isPending: true
           }
-          setUploadProgress(0)
-        } else {
-          // Image already exists, just refresh
-          await fetchImages()
-          setUploadProgress(0)
+          setPendingImages(prev => [...prev, newPending])
+
+          // If this is the first image overall, set as pending primary
+          if (allImages.length === 0) {
+            setPendingPrimaryId(newPending.tempId)
+          }
         }
+        setUploadProgress(0)
       } else {
         setModalConfig({
           isOpen: true,
@@ -172,7 +183,7 @@ export function ImageUploadModal({
     } finally {
       setUploading(false)
     }
-  }, [recipeSlug, recipeId, images.length, supabase, fetchImages, onUpload])
+  }, [recipeSlug, recipeId, images, pendingImages, allImages.length])
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -197,7 +208,6 @@ export function ImageUploadModal({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault()
     if (e.target.files && e.target.files[0]) {
-      // Handle multiple files
       Array.from(e.target.files).forEach(file => {
         handleFile(file)
       })
@@ -213,7 +223,6 @@ export function ImageUploadModal({
     setUploadProgress(0)
 
     try {
-      // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -242,34 +251,23 @@ export function ImageUploadModal({
       if (response.ok) {
         const data = await response.json()
 
-        // Check if this URL already exists for this recipe
-        const existingImage = images.find(img => img.image_url === data.url)
+        const existsInImages = images.some(img => img.image_url === data.url)
+        const existsInPending = pendingImages.some(img => img.url === data.url)
 
-        if (!existingImage) {
-          // Add to recipe_images table only if it doesn't exist
-          const isPrimary = images.length === 0
-          // @ts-ignore - Supabase type inference issue
-          await supabase
-            .from('recipe_images')
-            // @ts-ignore - Supabase type inference issue
-            .insert({
-              recipe_id: recipeId,
-              image_url: data.url,
-              is_primary: isPrimary,
-              display_order: images.length
-            })
-
-          // Refresh images
-          await fetchImages()
-          if (isPrimary) {
-            onUpload(data.url)
+        if (!existsInImages && !existsInPending) {
+          const newPending: PendingImage = {
+            url: data.url,
+            path: data.path,
+            tempId: `temp-${Date.now()}`,
+            isPending: true
           }
-          setUploadProgress(0)
-        } else {
-          // Image already exists, just refresh
-          await fetchImages()
-          setUploadProgress(0)
+          setPendingImages(prev => [...prev, newPending])
+
+          if (allImages.length === 0) {
+            setPendingPrimaryId(newPending.tempId)
+          }
         }
+        setUploadProgress(0)
       } else {
         const error = await response.json()
         setModalConfig({
@@ -290,44 +288,59 @@ export function ImageUploadModal({
     }
   }
 
-  const handleSetPrimary = async (imageId: string) => {
-    // Remove primary from all images
-    // @ts-ignore - Supabase type inference issue
-    await supabase
-      .from('recipe_images')
-      // @ts-ignore - Supabase type inference issue
-      .update({ is_primary: false })
-      .eq('recipe_id', recipeId)
+  const handleSetPrimary = (imageId: string) => {
+    const image = allImages.find(img =>
+      'isPending' in img ? img.tempId === imageId : img.id === imageId
+    )
 
-    // Set new primary
-    // @ts-ignore - Supabase type inference issue
-    const { error } = await supabase
-      .from('recipe_images')
-      // @ts-ignore - Supabase type inference issue
-      .update({ is_primary: true })
-      .eq('id', imageId)
+    if (image && 'isPending' in image) {
+      // Pending image - just update state
+      setPendingPrimaryId(image.tempId)
+    } else {
+      // Existing image - mark for making primary on save
+      // For now, we'll handle this immediately as before
+      handleSetPrimaryImmediate(imageId)
+    }
+  }
 
-    if (error) {
+  const handleSetPrimaryImmediate = async (imageId: string) => {
+    try {
+      const { error: removePrimaryError } = await supabase
+        .from('recipe_images')
+        // @ts-expect-error - Supabase type inference issue
+        .update({ is_primary: false })
+        .eq('recipe_id', recipeId)
+
+      if (removePrimaryError) throw removePrimaryError
+
+      const { error: setPrimaryError } = await supabase
+        .from('recipe_images')
+        // @ts-expect-error - Supabase type inference issue
+        .update({ is_primary: true })
+        .eq('id', imageId)
+
+      if (setPrimaryError) throw setPrimaryError
+
+      const primaryImage = images.find(img => img.id === imageId)
+      if (primaryImage) {
+        const { error: updateRecipeError } = await supabase
+          .from('recipes')
+          // @ts-expect-error - Supabase type inference issue
+          .update({ image_url: primaryImage.image_url })
+          .eq('id', recipeId)
+
+        if (updateRecipeError) throw updateRecipeError
+
+        await fetchImages()
+        onUpload(primaryImage.image_url)
+      }
+    } catch (error) {
       console.error('Error setting primary image:', error)
       setModalConfig({
         isOpen: true,
         message: 'Er ging iets mis bij het instellen van de hoofdfoto',
         type: 'error'
       })
-    } else {
-      const primaryImage = images.find(img => img.id === imageId)
-      if (primaryImage) {
-        // Also update recipes.image_url for backwards compatibility
-        // @ts-ignore - Supabase type inference issue
-        await supabase
-          .from('recipes')
-          // @ts-ignore - Supabase type inference issue
-          .update({ image_url: primaryImage.image_url })
-          .eq('id', recipeId)
-
-        onUpload(primaryImage.image_url)
-      }
-      await fetchImages()
     }
   }
 
@@ -340,6 +353,25 @@ export function ImageUploadModal({
     if (!imageToDelete) return
 
     const imageId = imageToDelete
+
+    // Check if it's a pending image
+    const pendingImage = pendingImages.find(img => img.tempId === imageId)
+    if (pendingImage) {
+      // Delete from storage and remove from pending
+      await deleteFromStorage(pendingImage.url)
+      setPendingImages(prev => prev.filter(img => img.tempId !== imageId))
+
+      // If it was pending primary, clear that
+      if (pendingPrimaryId === imageId) {
+        setPendingPrimaryId(null)
+      }
+
+      setShowDeleteConfirm(false)
+      setImageToDelete(null)
+      return
+    }
+
+    // It's an existing image - delete from database immediately
     const imageToDeleteData = images.find(img => img.id === imageId)
     const wasPrimary = imageToDeleteData?.is_primary
 
@@ -359,63 +391,161 @@ export function ImageUploadModal({
       setImageToDelete(null)
       return
     }
-      // If we deleted the primary image and there are other images, set the first remaining as primary
-      if (wasPrimary && images.length > 1) {
-        const remainingImages = images.filter(img => img.id !== imageId)
-        if (remainingImages.length > 0) {
-          const newPrimary = remainingImages[0]
 
-          // @ts-ignore - Supabase type inference issue
-          await supabase
-            .from('recipe_images')
-            // @ts-ignore - Supabase type inference issue
-            .update({ is_primary: true })
-            .eq('id', newPrimary.id)
+    if (wasPrimary && images.length > 1) {
+      const remainingImages = images.filter(img => img.id !== imageId)
+      if (remainingImages.length > 0) {
+        const newPrimary = remainingImages[0]
 
-          // Update recipes.image_url
-          // @ts-ignore - Supabase type inference issue
-          await supabase
-            .from('recipes')
-            // @ts-ignore - Supabase type inference issue
-            .update({ image_url: newPrimary.image_url })
-            .eq('id', recipeId)
+        await supabase
+          .from('recipe_images')
+          // @ts-expect-error - Supabase type inference issue
+          .update({ is_primary: true })
+          .eq('id', newPrimary.id)
 
-          onUpload(newPrimary.image_url)
-        } else {
-          // No more images, clear recipes.image_url
-          // @ts-ignore - Supabase type inference issue
-          await supabase
-            .from('recipes')
-            // @ts-ignore - Supabase type inference issue
-            .update({ image_url: null })
-            .eq('id', recipeId)
+        await supabase
+          .from('recipes')
+          // @ts-expect-error - Supabase type inference issue
+          .update({ image_url: newPrimary.image_url })
+          .eq('id', recipeId)
 
-          onUpload('')
-        }
+        onUpload(newPrimary.image_url)
+      } else {
+        await supabase
+          .from('recipes')
+          // @ts-expect-error - Supabase type inference issue
+          .update({ image_url: null })
+          .eq('id', recipeId)
+
+        onUpload('')
       }
+    }
 
     await fetchImages()
-    // Update current index if needed
-    if (currentImageIndex >= images.length - 1) {
-      setCurrentImageIndex(Math.max(0, images.length - 2))
+    if (currentImageIndex >= allImages.length - 1) {
+      setCurrentImageIndex(Math.max(0, allImages.length - 2))
     }
 
     setShowDeleteConfirm(false)
     setImageToDelete(null)
   }
 
+  const handleSave = async () => {
+    if (pendingImages.length === 0) {
+      onClose()
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      // Insert all pending images into database
+      const insertData = pendingImages.map((img, index) => ({
+        recipe_id: recipeId,
+        image_url: img.url,
+        is_primary: img.tempId === pendingPrimaryId,
+        display_order: images.length + index
+      }))
+
+      const { error: insertError } = await supabase
+        .from('recipe_images')
+        // @ts-expect-error - Supabase type inference issue
+        .insert(insertData)
+
+      if (insertError) throw insertError
+
+      let primaryUrl = currentImageUrl
+
+      // Update recipe's image_url if we have a new primary
+      if (pendingPrimaryId) {
+        const primaryPending = pendingImages.find(img => img.tempId === pendingPrimaryId)
+        if (primaryPending) {
+          // First, unset all existing primaries
+          await supabase
+            .from('recipe_images')
+            // @ts-expect-error - Supabase type inference issue
+            .update({ is_primary: false })
+            .eq('recipe_id', recipeId)
+
+          // Then set the new one as primary in the recipe_images we just inserted
+          await supabase
+            .from('recipe_images')
+            // @ts-expect-error - Supabase type inference issue
+            .update({ is_primary: true })
+            .eq('recipe_id', recipeId)
+            .eq('image_url', primaryPending.url)
+
+          // Update recipes table
+          await supabase
+            .from('recipes')
+            // @ts-expect-error - Supabase type inference issue
+            .update({ image_url: primaryPending.url })
+            .eq('id', recipeId)
+
+          primaryUrl = primaryPending.url
+        }
+      }
+
+      // Clear pending state
+      setPendingImages([])
+      setPendingPrimaryId(null)
+
+      // Refresh images
+      await fetchImages()
+
+      // ALWAYS call onUpload to trigger parent refresh, even if primary didn't change
+      // This ensures the parent component reloads and shows all new images
+      if (primaryUrl) {
+        onUpload(primaryUrl)
+      }
+
+      // Close modal
+      onClose()
+
+    } catch (error) {
+      console.error('Error saving images:', error)
+      setModalConfig({
+        isOpen: true,
+        message: 'Er ging iets mis bij het opslaan van de foto\'s',
+        type: 'error'
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleClose = async () => {
+    if (pendingImages.length > 0) {
+      setShowCloseConfirm(true)
+    } else {
+      onClose()
+    }
+  }
+
+  const handleConfirmClose = async () => {
+    // Delete all pending images from storage
+    for (const img of pendingImages) {
+      await deleteFromStorage(img.url)
+    }
+
+    // Clear pending state
+    setPendingImages([])
+    setPendingPrimaryId(null)
+    setShowCloseConfirm(false)
+    onClose()
+  }
+
   const goToPrevious = () => {
-    setCurrentImageIndex(prev => (prev > 0 ? prev - 1 : images.length - 1))
+    setCurrentImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1))
   }
 
   const goToNext = () => {
-    setCurrentImageIndex(prev => (prev < images.length - 1 ? prev + 1 : 0))
+    setCurrentImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0))
   }
 
   // Touch handling for swipe
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
-
   const minSwipeDistance = 50
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -429,7 +559,6 @@ export function ImageUploadModal({
 
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return
-
     const distance = touchStart - touchEnd
     const isLeftSwipe = distance > minSwipeDistance
     const isRightSwipe = distance < -minSwipeDistance
@@ -443,51 +572,59 @@ export function ImageUploadModal({
 
   if (!isOpen) return null
 
-  const currentImage = images[currentImageIndex]
+  const currentImage = allImages[currentImageIndex]
+  const isPendingImage = currentImage && 'isPending' in currentImage
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
-      <div className="relative w-full max-w-lg sm:max-w-2xl bg-white rounded-lg sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Wijzig Foto</h2>
           <button
-            onClick={onClose}
-            disabled={uploading || generatingAI}
+            onClick={handleClose}
+            disabled={uploading || generatingAI || isSaving}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
-            <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-500" />
+            <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {/* Current Images Gallery */}
           {loading ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-48">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
             </div>
-          ) : images.length > 0 && !uploading && !generatingAI ? (
+          ) : allImages.length > 0 && !uploading && !generatingAI ? (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-gray-700">
-                Huidige foto&apos;s ({currentImageIndex + 1}/{images.length})
+                {isPendingImage ? 'Nieuwe foto' : 'Huidige foto\'s'} ({currentImageIndex + 1}/{allImages.length})
               </h3>
               <div
-                className="relative h-48 sm:h-64 w-full rounded-lg sm:rounded-xl overflow-hidden border-2 border-gray-200"
+                className="relative h-48 sm:h-56 w-full rounded-lg overflow-hidden border-2 border-gray-200"
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
               >
                 <Image
-                  src={currentImage.image_url}
+                  src={'isPending' in currentImage ? currentImage.url : currentImage.image_url}
                   alt="Recipe preview"
                   fill
                   className="object-cover"
                   unoptimized
                 />
 
+                {/* Pending badge */}
+                {isPendingImage && (
+                  <div className="absolute top-2 left-2 bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
+                    Nieuw
+                  </div>
+                )}
+
                 {/* Navigation buttons */}
-                {images.length > 1 && (
+                {allImages.length > 1 && (
                   <>
                     <button
                       onClick={goToPrevious}
@@ -507,22 +644,31 @@ export function ImageUploadModal({
                 {/* Star and delete buttons */}
                 <div className="absolute top-2 right-2 flex gap-2">
                   <button
-                    onClick={() => handleSetPrimary(currentImage.id)}
+                    onClick={() => handleSetPrimary(isPendingImage ? currentImage.tempId : currentImage.id)}
                     className={`p-2 rounded-full shadow-lg transition-all ${
-                      currentImage.is_primary
+                      (isPendingImage && currentImage.tempId === pendingPrimaryId) ||
+                      (!isPendingImage && currentImage.is_primary)
                         ? 'bg-yellow-400 hover:bg-yellow-500'
                         : 'bg-white/80 hover:bg-white'
                     }`}
-                    title={currentImage.is_primary ? 'Hoofdfoto' : 'Stel in als hoofdfoto'}
+                    title={
+                      (isPendingImage && currentImage.tempId === pendingPrimaryId) ||
+                      (!isPendingImage && currentImage.is_primary)
+                        ? 'Hoofdfoto'
+                        : 'Stel in als hoofdfoto'
+                    }
                   >
                     <Star
                       className={`h-5 w-5 ${
-                        currentImage.is_primary ? 'text-white fill-white' : 'text-gray-800'
+                        (isPendingImage && currentImage.tempId === pendingPrimaryId) ||
+                        (!isPendingImage && currentImage.is_primary)
+                          ? 'text-white fill-white'
+                          : 'text-gray-800'
                       }`}
                     />
                   </button>
                   <button
-                    onClick={() => handleDeleteClick(currentImage.id)}
+                    onClick={() => handleDeleteClick(isPendingImage ? currentImage.tempId : currentImage.id)}
                     className="p-2 bg-red-500 hover:bg-red-600 rounded-full shadow-lg transition-all"
                     title="Verwijder foto"
                   >
@@ -531,9 +677,9 @@ export function ImageUploadModal({
                 </div>
 
                 {/* Dots indicator */}
-                {images.length > 1 && (
+                {allImages.length > 1 && (
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                    {images.map((_, idx) => (
+                    {allImages.map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => setCurrentImageIndex(idx)}
@@ -550,10 +696,10 @@ export function ImageUploadModal({
             </div>
           ) : null}
 
-          {/* Upload Area */}
+          {/* Upload Area - More Compact */}
           {!uploading && !generatingAI && (
             <div
-              className={`relative border-2 border-dashed rounded-lg sm:rounded-xl p-6 sm:p-12 text-center transition-all ${
+              className={`relative border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-all ${
                 dragActive
                   ? 'border-primary bg-primary/5 scale-105'
                   : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
@@ -572,15 +718,15 @@ export function ImageUploadModal({
                 className="hidden"
               />
 
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-3">
                 <div className="flex justify-center">
-                  <div className="p-3 sm:p-4 bg-primary/10 rounded-full">
-                    <ImageIcon className="h-8 w-8 sm:h-12 sm:w-12 text-primary" />
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <ImageIcon className="h-8 w-8 text-primary" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-base sm:text-lg font-medium text-gray-900">
+                <div className="space-y-1">
+                  <p className="text-base font-medium text-gray-900">
                     Sleep een foto hierheen
                   </p>
                   <p className="text-sm text-gray-500">
@@ -588,27 +734,27 @@ export function ImageUploadModal({
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
                   <button
                     onClick={handleButtonClick}
-                    className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm sm:text-base"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm"
                   >
-                    <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Upload className="h-4 w-4" />
                     Selecteer bestand
                   </button>
 
                   {recipeTitle && (
                     <button
                       onClick={handleAIGenerate}
-                      className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all text-sm sm:text-base"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all text-sm"
                     >
-                      <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <Sparkles className="h-4 w-4" />
                       AI Genereren
                     </button>
                   )}
                 </div>
 
-                <p className="text-xs text-gray-400 mt-2 sm:mt-4">
+                <p className="text-xs text-gray-400">
                   PNG, JPG, GIF tot 10MB
                 </p>
               </div>
@@ -617,16 +763,16 @@ export function ImageUploadModal({
 
           {/* Upload/Generate Progress */}
           {(uploading || generatingAI) && (
-            <div className="space-y-4">
-              <div className="relative h-48 sm:h-64 w-full rounded-lg sm:rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
-                <div className="relative z-10 flex flex-col items-center gap-3 sm:gap-4 bg-white/90 backdrop-blur-sm rounded-xl sm:rounded-2xl p-6 sm:p-8 mx-4">
+            <div className="space-y-3">
+              <div className="relative h-40 w-full rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                <div className="relative z-10 flex flex-col items-center gap-3 bg-white/90 backdrop-blur-sm rounded-xl p-6">
                   {generatingAI ? (
-                    <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 text-purple-600 animate-pulse" />
+                    <Sparkles className="h-10 w-10 text-purple-600 animate-pulse" />
                   ) : (
-                    <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 text-primary animate-spin" />
+                    <Loader2 className="h-10 w-10 text-primary animate-spin" />
                   )}
-                  <div className="space-y-1 sm:space-y-2 text-center">
-                    <p className="text-base sm:text-lg font-medium text-gray-900">
+                  <div className="space-y-1 text-center">
+                    <p className="text-base font-medium text-gray-900">
                       {generatingAI ? 'AI foto genereren...' : 'Foto uploaden...'}
                     </p>
                     <p className="text-sm text-gray-500">
@@ -636,7 +782,6 @@ export function ImageUploadModal({
                 </div>
               </div>
 
-              {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ease-out ${
@@ -649,15 +794,34 @@ export function ImageUploadModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 sm:gap-3 p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
+        {/* Footer - Fixed, Always Visible */}
+        <div className="flex-shrink-0 flex items-center justify-end gap-3 p-4 sm:p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
           <button
-            onClick={onClose}
-            disabled={uploading || generatingAI}
-            className="px-4 sm:px-6 py-2 text-sm sm:text-base text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            onClick={handleClose}
+            disabled={uploading || generatingAI || isSaving}
+            className="px-4 py-2 text-sm text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             Sluiten
           </button>
+          {pendingImages.length > 0 && (
+            <button
+              onClick={handleSave}
+              disabled={uploading || generatingAI || isSaving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opslaan...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Opslaan ({pendingImages.length})
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -672,6 +836,17 @@ export function ImageUploadModal({
         title="Foto verwijderen?"
         message="Weet je zeker dat je deze foto wilt verwijderen? Deze actie kan niet ongedaan gemaakt worden."
         confirmText="Verwijderen"
+        cancelText="Annuleren"
+      />
+
+      {/* Close Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showCloseConfirm}
+        onClose={() => setShowCloseConfirm(false)}
+        onConfirm={handleConfirmClose}
+        title="Sluiten zonder opslaan?"
+        message={`Je hebt ${pendingImages.length} nieuwe foto${pendingImages.length > 1 ? "'s" : ''} toegevoegd. Weet je zeker dat je wilt sluiten zonder op te slaan?`}
+        confirmText="Sluiten zonder opslaan"
         cancelText="Annuleren"
       />
 

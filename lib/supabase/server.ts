@@ -5,6 +5,20 @@ import { Database } from '@/types/supabase'
 export async function createClient() {
   const cookieStore = await cookies()
 
+  // Custom fetch for Tailscale HTTPS with self-signed certificates
+  const customFetch = (url: RequestInfo | URL, options: RequestInit = {}) => {
+    // Only apply custom agent for HTTPS requests in production
+    if (process.env.NODE_ENV === 'production' && typeof url === 'string' && url.startsWith('https://')) {
+      const https = require('https')
+      return fetch(url, {
+        ...options,
+        // @ts-ignore
+        agent: new https.Agent({ rejectUnauthorized: false })
+      })
+    }
+    return fetch(url, options)
+  }
+
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,6 +39,9 @@ export async function createClient() {
           }
         },
       },
+      global: {
+        fetch: customFetch
+      }
     }
   )
 }
