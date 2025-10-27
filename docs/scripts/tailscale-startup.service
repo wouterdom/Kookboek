@@ -1,0 +1,25 @@
+[Unit]
+Description=Tailscale Serve Configuration for Kookboek App
+Documentation=https://github.com/your-repo/kookboek/docs/TAILSCALE-SUPABASE-TROUBLESHOOTING.md
+After=network-online.target tailscaled.service docker.service
+Wants=network-online.target
+Requires=tailscaled.service docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tailscale-startup.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+User=root
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Security
+NoNewPrivileges=false
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -68,10 +68,12 @@ logs
 SERVER-ACCESS.md
 SUPABASE-CONNECTION.md
 COOLIFY-DEPLOYMENT.md
+docs/SERVER-ACCESS.md
+docs/SUPABASE-CONNECTION.md
+docs/COOLIFY-DEPLOYMENT-GUIDE.md
 
 # Development files and documentation
 wireframes/
-docs/
 CLAUDE.md
 *.wireframe.html
 *.playwright
