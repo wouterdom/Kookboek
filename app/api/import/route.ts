@@ -218,8 +218,55 @@ async function generateRecipeImage(
   }
 }
 
-const RECIPE_PROMPT = `
-Extract recipe information from the content. Return ONLY valid JSON matching this structure.
+// Smart content extraction - targets recipe-specific sections to reduce AI processing time
+function extractRecipeRelevantContent($: cheerio.CheerioAPI, bodyText: string): string {
+  // Priority: Recipe-specific selectors
+  const recipeSelectors = [
+    'article',
+    '.recipe',
+    '[itemtype*="Recipe"]',
+    '.recipe-content',
+    'main',
+    '[role="main"]'
+  ]
+
+  for (const selector of recipeSelectors) {
+    const elem = $(selector).first()
+    if (elem.length && elem.text().length > 500) {
+      return elem.text()
+    }
+  }
+
+  // Fallback to full body if no recipe container found
+  return bodyText
+}
+
+// Fix JSON string with unescaped control characters from AI response
+function sanitizeAIJson(jsonString: string): string {
+  // The AI sometimes puts literal newlines in JSON strings instead of \n
+  // We need to fix these before parsing
+
+  // First, try to find all string values in the JSON and escape control characters
+  // This regex finds content between quotes that isn't already escaped
+  return jsonString.replace(
+    /"([^"]*?)"/g,
+    (match, content) => {
+      // Don't touch keys (they shouldn't have control chars anyway)
+      // Only fix string values
+      if (content.includes('\n') || content.includes('\r') || content.includes('\t')) {
+        const fixed = content
+          .replace(/\r\n/g, '\\n')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\n')
+          .replace(/\t/g, '\\t')
+        return `"${fixed}"`
+      }
+      return match
+    }
+  )
+}
+
+const RECIPE_PROMPT = `Extract recipe information from the content. Return ONLY valid JSON matching this structure.
 
 {
   "title": "Recipe title",
@@ -233,7 +280,7 @@ Extract recipe information from the content. Return ONLY valid JSON matching thi
       "amount": number or null,
       "unit": "el" | "tl" | "ml" | "l" | "g" | "kg" | etc or null,
       "name": "ingredient name in Dutch",
-      "section": "section name or null (e.g., 'Voor de saus', 'Voor het hoofdgerecht', 'Voor de vulling')"
+      "section": "section name or null (e.g., 'Voor de saus', 'Voor het hoofdgerecht')"
     }
   ],
   "instructions": "Step-by-step instructions",
@@ -241,89 +288,47 @@ Extract recipe information from the content. Return ONLY valid JSON matching thi
   "uitgever": "Author or publisher name"
 }
 
-CRITICAL - THESE FIELDS ARE ABSOLUTELY REQUIRED:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRED FIELDS:
 
-1. "gang" - MUST be EXACTLY one of these 6 options (case-sensitive):
-   ✓ "Amuse"
-   ✓ "Voorgerecht"
-   ✓ "Soep"
-   ✓ "Hoofdgerecht"
-   ✓ "Dessert"
-   ✓ "Bijgerecht"
-
-   ❌ NO OTHER VALUES ALLOWED
-   ❌ Do NOT use: "bijgerechten", "side dish", "starter", etc.
-
-   How to decide:
-   - Amuse = kleine hapjes voor het eten
-   - Voorgerecht = starter, eerste gang
-   - Soep = any soup
-   - Hoofdgerecht = main course, het hoofdgerecht
-   - Dessert = dessert, nagerecht, zoet
-   - Bijgerecht = side dish, bijgerecht (bijv. friet, salade)
+1. "gang" - MUST be EXACTLY one of these (case-sensitive):
+   "Amuse" | "Voorgerecht" | "Soep" | "Hoofdgerecht" | "Dessert" | "Bijgerecht"
 
    If unclear: use "Hoofdgerecht" as default
 
-2. "uitgever" - MUST extract the author/publisher:
-   - Look for author names: "door [naam]", "by [naam]", "recept van [naam]"
-   - Look for website names in headers/footers
-   - Look for brand names (Knorr, Solo, etc.)
-   - Common publishers: Jeroen Meus, Chloé Kookt, Laura's Bakery, Dagelijkse Kost, Leuke Recepten
+2. "uitgever" - Extract author/publisher from page (e.g., Jeroen Meus, Dagelijkse Kost, Laura's Bakery)
+   If not found: use website domain (e.g., "leukerecepten.nl")
+   NEVER return null
 
-   If author not found: use website domain (e.g., "leukerecepten.nl")
-   ❌ NEVER return null or empty string
+3. "instructions" - Format as numbered list with line breaks between steps
+   Use \\n for line breaks in the JSON string. Example: "1. Step one\\n2. Step two\\n3. Step three"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. "ingredients" - Extract exact amounts in metric units (g, kg, ml, l, el, tl)
+   If ingredients are grouped (e.g., "Voor de saus:", "Voor de vulling:"), extract section name
+   Use null for section if not grouped
 
-Other important rules:
-- All text MUST be in Dutch
-- INSTRUCTIONS: Format as a numbered list with ACTUAL line breaks between each step. Each step should be on its own line.
-  Example format:
-  "1. Verwarm de oven voor op 180°C.
-  2. Snijd de groenten in stukjes.
-  3. Bak 30 minuten in de oven."
+RULES:
+- All text in Dutch
+- difficulty in English (easy/medium/hard)
+- servings: default to 4 if not specified
 
-  CRITICAL: Use REAL line breaks (newlines), NOT the text "\n". Each number should start on a new line.
-
-- SERVINGS: Extract if mentioned, otherwise use 4
-- DIFFICULTY: Return in English (easy/medium/hard)
-- INGREDIENT AMOUNTS: Extract exact amounts, use null if not specified
-- INGREDIENT SECTIONS: If ingredients are grouped (e.g., "Voor de saus:", "Voor de vulling:"), extract the section name. Otherwise use null.
-
-Example output (WITHOUT sections):
+Example:
 {
   "title": "Zoete aardappel friet",
   "gang": "Bijgerecht",
   "uitgever": "Leuke Recepten",
   "servings": 4,
+  "prep_time": 10,
+  "cook_time": 30,
+  "difficulty": "easy",
   "ingredients": [
     { "amount": 500, "unit": "g", "name": "zoete aardappelen", "section": null },
-    { "amount": 2, "unit": "el", "name": "olijfolie", "section": null }
+    { "amount": 2, "unit": "el", "name": "olijfolie", "section": null },
+    { "amount": null, "unit": null, "name": "zout en peper", "section": null }
   ],
   "instructions": "1. Verwarm de oven voor op 200°C.
 2. Snijd de zoete aardappelen in frietjes.
 3. Meng met olijfolie, zout en peper.
 4. Bak 30 minuten in de oven tot goudbruin."
-}
-
-Example output (WITH sections):
-{
-  "title": "Carbonara",
-  "gang": "Hoofdgerecht",
-  "uitgever": "Italiaanse recepten",
-  "servings": 4,
-  "ingredients": [
-    { "amount": 400, "unit": "g", "name": "spaghetti", "section": null },
-    { "amount": 4, "unit": null, "name": "eieren", "section": "Voor de saus" },
-    { "amount": 100, "unit": "g", "name": "Pecorino Romano", "section": "Voor de saus" },
-    { "amount": 150, "unit": "g", "name": "guanciale", "section": "Voor de saus" }
-  ],
-  "instructions": "1. Kook de spaghetti volgens de verpakking.
-2. Bak de guanciale krokant in een pan.
-3. Klop de eieren met de geraspte kaas.
-4. Meng de pasta met het spek en het eigenmengsel.
-5. Serveer direct met extra kaas."
 }
 `
 
@@ -347,10 +352,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Use Gemini to extract recipe from pasted content
+        // OPTIMIZATION: Reduce content size for faster processing
         const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' })
         const result = await model.generateContent([
           RECIPE_PROMPT,
-          `Extract recipe information from this pasted content:\n\n${pastedContent.slice(0, 300000)}`
+          `Extract recipe information from this pasted content:\n\n${pastedContent.slice(0, 150000)}`
         ])
 
         const text = result.response.text()
@@ -359,7 +365,9 @@ export async function POST(request: NextRequest) {
           throw new Error('Kon geen recept informatie vinden in de geplakte tekst')
         }
 
-        recipeData = JSON.parse(jsonMatch[0])
+        // Sanitize JSON before parsing to handle control characters
+        const sanitizedJson = sanitizeAIJson(jsonMatch[0])
+        recipeData = JSON.parse(sanitizedJson)
 
         // Set source info if provided
         if (sourceUrl) {
@@ -490,8 +498,6 @@ export async function POST(request: NextRequest) {
           html = await response.text()
         }
 
-        const extractedImageUrl = await extractImageFromWebpage(html, url)
-
         // Use cheerio to extract metadata and text content
         const $ = cheerio.load(html)
 
@@ -564,14 +570,20 @@ export async function POST(request: NextRequest) {
           }, { status: 403 })
         }
 
-        // Get cleaner HTML content - limit to 300k chars (Gemini can handle it)
-        const cleanContent = bodyText.slice(0, 300000)
+        // OPTIMIZATION: Run image extraction and AI processing in parallel
+        const [extractedImageUrl, result] = await Promise.all([
+          extractImageFromWebpage(html, url),
+          (async () => {
+            // Use smart content extraction to reduce payload size
+            const cleanContent = extractRecipeRelevantContent($, bodyText).slice(0, 150000)
 
-        // Use Gemini to extract recipe from HTML
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' })
-        const result = await model.generateContent([
-          RECIPE_PROMPT,
-          `Extract recipe information from this webpage content:\n\n${cleanContent}`
+            // Use Gemini to extract recipe from HTML
+            const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' })
+            return model.generateContent([
+              RECIPE_PROMPT,
+              `Extract recipe information from this webpage content:\n\n${cleanContent}`
+            ])
+          })()
         ])
 
         const text = result.response.text()
@@ -581,7 +593,9 @@ export async function POST(request: NextRequest) {
           throw new Error('Could not extract recipe information')
         }
 
-        recipeData = JSON.parse(jsonMatch[0])
+        // Sanitize JSON before parsing to handle control characters
+        const sanitizedJson = sanitizeAIJson(jsonMatch[0])
+        recipeData = JSON.parse(sanitizedJson)
         recipeData.source_url = url
         recipeData.source = sourceName // Use extracted source name
         recipeData.extracted_image_url = extractedImageUrl
@@ -626,7 +640,9 @@ export async function POST(request: NextRequest) {
         throw new Error('Could not extract recipe information from photos')
       }
 
-      recipeData = JSON.parse(jsonMatch[0])
+      // Sanitize JSON before parsing to handle control characters
+      const sanitizedJson = sanitizeAIJson(jsonMatch[0])
+      recipeData = JSON.parse(sanitizedJson)
       recipeData.source = 'Foto opgeladen'
       recipeData.notes = `Geïmporteerd van ${photos.length} foto's`
 
@@ -644,15 +660,34 @@ export async function POST(request: NextRequest) {
     // Handle image - download and upload to Supabase
     let imageUrl: string | null = null
 
+    // OPTIMIZATION: Run image download and AI generation in parallel
+    // Use Promise.race to get the first successful result
+    const imagePromises: Promise<string | null>[] = []
+
     if (recipeData.extracted_image_url) {
-      // Try to download and upload the extracted image
-      imageUrl = await downloadAndUploadImage(recipeData.extracted_image_url, slug, supabase)
+      imagePromises.push(
+        downloadAndUploadImage(recipeData.extracted_image_url, slug, supabase)
+          .catch((error) => {
+            console.log(`Image download failed: ${error.message}`)
+            return null
+          })
+      )
     }
 
-    // If image extraction failed, generate AI image with Gemini
-    if (!imageUrl && recipeData.title) {
-      console.log(`No image found for "${recipeData.title}", generating AI image...`)
-      imageUrl = await generateRecipeImage(recipeData.title, slug, supabase)
+    // Always start AI generation in parallel as backup (with slight delay to prefer scraped image)
+    if (recipeData.title) {
+      imagePromises.push(
+        new Promise<string | null>((resolve) => setTimeout(resolve, 1500)).then(() =>
+          generateRecipeImage(recipeData.title, slug, supabase).catch(() => null)
+        )
+      )
+    }
+
+    // Get first successful image (non-null result)
+    if (imagePromises.length > 0) {
+      imageUrl = await Promise.race(
+        imagePromises.map(p => p.then(url => url ? Promise.resolve(url) : Promise.reject('No image')))
+      ).catch(() => null)
     }
 
     // Check if recipe already exists (by slug)

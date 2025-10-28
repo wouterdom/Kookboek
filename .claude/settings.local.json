@@ -22,7 +22,9 @@
       "Bash(node sanitize-docs.js:*)",
       "Bash(move sanitize-docs.js sanitize-docs.cjs)",
       "Bash(node sanitize-docs.cjs:*)",
-      "Read(//c/Users/wdom/**)"
+      "Read(//c/Users/wdom/**)",
+      "Bash(git log:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

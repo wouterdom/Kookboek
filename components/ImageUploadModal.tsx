@@ -57,7 +57,26 @@ export function ImageUploadModal({
   const supabase = createClient()
 
   // Combined list of images (existing + pending)
-  const allImages: CombinedImage[] = [...images, ...pendingImages]
+  // Primary image should always be first, then order by display_order
+  const allImages: CombinedImage[] = (() => {
+    const existingImages = [...images]
+    const primaryImage = existingImages.find(img => img.is_primary)
+    const nonPrimaryImages = existingImages.filter(img => !img.is_primary)
+
+    // If there's a pending primary, put it first, followed by all other images
+    if (pendingPrimaryId) {
+      const pendingPrimary = pendingImages.find(img => img.tempId === pendingPrimaryId)
+      const otherPending = pendingImages.filter(img => img.tempId !== pendingPrimaryId)
+      return pendingPrimary
+        ? [pendingPrimary, ...existingImages, ...otherPending]
+        : [...existingImages, ...pendingImages]
+    }
+
+    // Otherwise, existing primary first
+    return primaryImage
+      ? [primaryImage, ...nonPrimaryImages, ...pendingImages]
+      : [...existingImages, ...pendingImages]
+  })()
 
   // Fetch images for this recipe
   const fetchImages = useCallback(async () => {
@@ -75,9 +94,8 @@ export function ImageUploadModal({
     } else {
       const images = (data || []) as RecipeImage[]
       setImages(images)
-      // Find the primary image and set as current
-      const primaryIndex = images.findIndex(img => img.is_primary) ?? 0
-      setCurrentImageIndex(primaryIndex >= 0 ? primaryIndex : 0)
+      // Always show primary image first (index 0)
+      setCurrentImageIndex(0)
     }
     setLoading(false)
   }, [recipeId, supabase])
@@ -296,6 +314,8 @@ export function ImageUploadModal({
     if (image && 'isPending' in image) {
       // Pending image - just update state
       setPendingPrimaryId(image.tempId)
+      // Set current index to 0 since the primary image will be first in the array
+      setCurrentImageIndex(0)
     } else {
       // Existing image - mark for making primary on save
       // For now, we'll handle this immediately as before
@@ -331,7 +351,14 @@ export function ImageUploadModal({
 
         if (updateRecipeError) throw updateRecipeError
 
-        await fetchImages()
+        // Update local state instead of refetching to avoid flicker
+        setImages(prevImages =>
+          prevImages.map(img => ({
+            ...img,
+            is_primary: img.id === imageId
+          }))
+        )
+
         onUpload(primaryImage.image_url)
       }
     } catch (error) {
@@ -353,6 +380,7 @@ export function ImageUploadModal({
     if (!imageToDelete) return
 
     const imageId = imageToDelete
+    const totalImagesBeforeDelete = allImages.length
 
     // Check if it's a pending image
     const pendingImage = pendingImages.find(img => img.tempId === imageId)
@@ -364,6 +392,14 @@ export function ImageUploadModal({
       // If it was pending primary, clear that
       if (pendingPrimaryId === imageId) {
         setPendingPrimaryId(null)
+      }
+
+      // Adjust currentImageIndex if needed
+      const newTotalImages = totalImagesBeforeDelete - 1
+      if (newTotalImages === 0) {
+        setCurrentImageIndex(0)
+      } else if (currentImageIndex >= newTotalImages) {
+        setCurrentImageIndex(newTotalImages - 1)
       }
 
       setShowDeleteConfirm(false)
@@ -392,38 +428,50 @@ export function ImageUploadModal({
       return
     }
 
-    if (wasPrimary && images.length > 1) {
-      const remainingImages = images.filter(img => img.id !== imageId)
-      if (remainingImages.length > 0) {
-        const newPrimary = remainingImages[0]
+    // Update local state immediately to avoid flicker
+    const remainingImages = images.filter(img => img.id !== imageId)
+    setImages(remainingImages)
 
-        await supabase
-          .from('recipe_images')
-          // @ts-expect-error - Supabase type inference issue
-          .update({ is_primary: true })
-          .eq('id', newPrimary.id)
+    if (wasPrimary && remainingImages.length > 0) {
+      const newPrimary = remainingImages[0]
 
-        await supabase
-          .from('recipes')
-          // @ts-expect-error - Supabase type inference issue
-          .update({ image_url: newPrimary.image_url })
-          .eq('id', recipeId)
+      await supabase
+        .from('recipe_images')
+        // @ts-expect-error - Supabase type inference issue
+        .update({ is_primary: true })
+        .eq('id', newPrimary.id)
 
-        onUpload(newPrimary.image_url)
-      } else {
-        await supabase
-          .from('recipes')
-          // @ts-expect-error - Supabase type inference issue
-          .update({ image_url: null })
-          .eq('id', recipeId)
+      await supabase
+        .from('recipes')
+        // @ts-expect-error - Supabase type inference issue
+        .update({ image_url: newPrimary.image_url })
+        .eq('id', recipeId)
 
-        onUpload('')
-      }
+      // Update local state to reflect new primary
+      setImages(prevImages =>
+        prevImages.map(img => ({
+          ...img,
+          is_primary: img.id === newPrimary.id
+        }))
+      )
+
+      onUpload(newPrimary.image_url)
+    } else if (wasPrimary && remainingImages.length === 0) {
+      await supabase
+        .from('recipes')
+        // @ts-expect-error - Supabase type inference issue
+        .update({ image_url: null })
+        .eq('id', recipeId)
+
+      onUpload('')
     }
 
-    await fetchImages()
-    if (currentImageIndex >= allImages.length - 1) {
-      setCurrentImageIndex(Math.max(0, allImages.length - 2))
+    // Adjust currentImageIndex after deletion
+    const newTotalImages = totalImagesBeforeDelete - 1
+    if (newTotalImages === 0) {
+      setCurrentImageIndex(0)
+    } else if (currentImageIndex >= newTotalImages) {
+      setCurrentImageIndex(newTotalImages - 1)
     }
 
     setShowDeleteConfirm(false)
@@ -439,7 +487,23 @@ export function ImageUploadModal({
     setIsSaving(true)
 
     try {
-      // Insert all pending images into database
+      let primaryUrl = currentImageUrl
+
+      // Step 1: If we have a new pending primary, unset all existing primaries first
+      if (pendingPrimaryId) {
+        const { error: unsetError } = await supabase
+          .from('recipe_images')
+          // @ts-expect-error - Supabase type inference issue
+          .update({ is_primary: false })
+          .eq('recipe_id', recipeId)
+
+        if (unsetError) {
+          console.error('Error unsetting primary:', unsetError)
+          throw unsetError
+        }
+      }
+
+      // Step 2: Insert all pending images into database with correct is_primary flag
       const insertData = pendingImages.map((img, index) => ({
         recipe_id: recipeId,
         image_url: img.url,
@@ -447,42 +511,36 @@ export function ImageUploadModal({
         display_order: images.length + index
       }))
 
-      const { error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from('recipe_images')
         // @ts-expect-error - Supabase type inference issue
         .insert(insertData)
+        .select()
 
-      if (insertError) throw insertError
+      if (insertError) {
+        console.error('Error inserting images:', insertError)
+        throw insertError
+      }
 
-      let primaryUrl = currentImageUrl
+      console.log('Successfully inserted images:', insertedData)
 
-      // Update recipe's image_url if we have a new primary
+      // Step 3: Update recipe's image_url if we have a new primary
       if (pendingPrimaryId) {
         const primaryPending = pendingImages.find(img => img.tempId === pendingPrimaryId)
         if (primaryPending) {
-          // First, unset all existing primaries
-          await supabase
-            .from('recipe_images')
-            // @ts-expect-error - Supabase type inference issue
-            .update({ is_primary: false })
-            .eq('recipe_id', recipeId)
-
-          // Then set the new one as primary in the recipe_images we just inserted
-          await supabase
-            .from('recipe_images')
-            // @ts-expect-error - Supabase type inference issue
-            .update({ is_primary: true })
-            .eq('recipe_id', recipeId)
-            .eq('image_url', primaryPending.url)
-
-          // Update recipes table
-          await supabase
+          const { error: updateRecipeError } = await supabase
             .from('recipes')
             // @ts-expect-error - Supabase type inference issue
             .update({ image_url: primaryPending.url })
             .eq('id', recipeId)
 
+          if (updateRecipeError) {
+            console.error('Error updating recipe image_url:', updateRecipeError)
+            throw updateRecipeError
+          }
+
           primaryUrl = primaryPending.url
+          console.log('Updated recipe primary image to:', primaryUrl)
         }
       }
 
@@ -597,7 +655,7 @@ export function ImageUploadModal({
             <div className="flex items-center justify-center h-48">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
             </div>
-          ) : allImages.length > 0 && !uploading && !generatingAI ? (
+          ) : allImages.length > 0 && currentImage && !uploading && !generatingAI ? (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-gray-700">
                 {isPendingImage ? 'Nieuwe foto' : 'Huidige foto\'s'} ({currentImageIndex + 1}/{allImages.length})
@@ -609,7 +667,7 @@ export function ImageUploadModal({
                 onTouchEnd={onTouchEnd}
               >
                 <Image
-                  src={'isPending' in currentImage ? currentImage.url : currentImage.image_url}
+                  src={isPendingImage ? currentImage.url : currentImage.image_url}
                   alt="Recipe preview"
                   fill
                   className="object-cover"
