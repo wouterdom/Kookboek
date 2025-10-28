@@ -266,6 +266,37 @@ function sanitizeAIJson(jsonString: string): string {
   )
 }
 
+// Validate and normalize instructions from AI response
+function validateInstructions(instructions: any): any {
+  // If it's already an array, validate and normalize it
+  if (Array.isArray(instructions)) {
+    return instructions.map((inst, index) => ({
+      section: (typeof inst.section === 'string' && inst.section.trim())
+        ? inst.section.trim()
+        : null,
+      step: inst.step || inst.text || '',
+      order_index: typeof inst.order_index === 'number' ? inst.order_index : index
+    }))
+  }
+
+  // If it's a string (legacy format), convert to structured format
+  if (typeof instructions === 'string') {
+    const steps = instructions
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => /^\d+[\.\)]/.test(line)) // Lines starting with number
+      .map((line, index) => ({
+        section: null,
+        step: line.replace(/^\d+[\.\)]\s*/, ''), // Remove number prefix
+        order_index: index
+      }))
+
+    return steps.length > 0 ? steps : null
+  }
+
+  return null
+}
+
 const RECIPE_PROMPT = `Extract recipe information from the content. Return ONLY valid JSON matching this structure.
 
 {
@@ -283,7 +314,13 @@ const RECIPE_PROMPT = `Extract recipe information from the content. Return ONLY 
       "section": "section name or null (e.g., 'Voor de saus', 'Voor het hoofdgerecht')"
     }
   ],
-  "instructions": "Step-by-step instructions",
+  "instructions": [
+    {
+      "section": string or null,
+      "step": string,
+      "order_index": number
+    }
+  ],
   "gang": "ONE OF THE SIX OPTIONS BELOW",
   "uitgever": "Author or publisher name"
 }
@@ -299,8 +336,11 @@ REQUIRED FIELDS:
    If not found: use website domain (e.g., "leukerecepten.nl")
    NEVER return null
 
-3. "instructions" - Format as numbered list with line breaks between steps
-   Use \\n for line breaks in the JSON string. Example: "1. Step one\\n2. Step two\\n3. Step three"
+3. "instructions" - Array of instruction steps with optional section grouping
+   - If recipe has clear section headings (e.g., "Het stoofvlees", "Voor de frieten", "Afwerken"), extract them in section field
+   - If NO sections exist, use null for all steps
+   - order_index MUST be sequential: 0, 1, 2, 3... (NEVER restart numbering per section)
+   - Each step should be complete instruction text in Dutch
 
 4. "ingredients" - Extract exact amounts in metric units (g, kg, ml, l, el, tl)
    If ingredients are grouped (e.g., "Voor de saus:", "Voor de vulling:"), extract section name
@@ -311,7 +351,7 @@ RULES:
 - difficulty in English (easy/medium/hard)
 - servings: default to 4 if not specified
 
-Example:
+Example WITHOUT sections:
 {
   "title": "Zoete aardappel friet",
   "gang": "Bijgerecht",
@@ -325,10 +365,28 @@ Example:
     { "amount": 2, "unit": "el", "name": "olijfolie", "section": null },
     { "amount": null, "unit": null, "name": "zout en peper", "section": null }
   ],
-  "instructions": "1. Verwarm de oven voor op 200°C.
-2. Snijd de zoete aardappelen in frietjes.
-3. Meng met olijfolie, zout en peper.
-4. Bak 30 minuten in de oven tot goudbruin."
+  "instructions": [
+    { "section": null, "step": "Verwarm de oven voor op 200°C", "order_index": 0 },
+    { "section": null, "step": "Snijd de zoete aardappelen in frietjes", "order_index": 1 },
+    { "section": null, "step": "Meng met olijfolie, zout en peper", "order_index": 2 },
+    { "section": null, "step": "Bak 30 minuten in de oven tot goudbruin", "order_index": 3 }
+  ]
+}
+
+Example WITH sections:
+{
+  "title": "Stoofvlees met friet",
+  "gang": "Hoofdgerecht",
+  "uitgever": "Dagelijkse Kost",
+  "servings": 4,
+  "instructions": [
+    { "section": "Het stoofvlees", "step": "Pel de uien en snipper ze grof", "order_index": 0 },
+    { "section": "Het stoofvlees", "step": "Verhit een stoofpot en smelt er boter in", "order_index": 1 },
+    { "section": "Het stoofvlees", "step": "Schroei de stukken vlees toe tot goudbruin", "order_index": 2 },
+    { "section": "Voor de frieten", "step": "Schil de aardappelen en snij in frieten", "order_index": 3 },
+    { "section": "Voor de frieten", "step": "Bak de frieten tot goudbruin", "order_index": 4 },
+    { "section": "Afwerken", "step": "Serveer het stoofvlees met friet", "order_index": 5 }
+  ]
 }
 `
 
@@ -368,6 +426,11 @@ export async function POST(request: NextRequest) {
         // Sanitize JSON before parsing to handle control characters
         const sanitizedJson = sanitizeAIJson(jsonMatch[0])
         recipeData = JSON.parse(sanitizedJson)
+
+        // Validate and normalize instructions
+        if (recipeData.instructions) {
+          recipeData.instructions = validateInstructions(recipeData.instructions)
+        }
 
         // Set source info if provided
         if (sourceUrl) {
@@ -596,6 +659,11 @@ export async function POST(request: NextRequest) {
         // Sanitize JSON before parsing to handle control characters
         const sanitizedJson = sanitizeAIJson(jsonMatch[0])
         recipeData = JSON.parse(sanitizedJson)
+
+        // Validate and normalize instructions
+        if (recipeData.instructions) {
+          recipeData.instructions = validateInstructions(recipeData.instructions)
+        }
         recipeData.source_url = url
         recipeData.source = sourceName // Use extracted source name
         recipeData.extracted_image_url = extractedImageUrl
@@ -710,9 +778,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert recipe into database - be very lenient with data
-    // Normalize instructions to ensure proper formatting
-    const normalizedInstructions = normalizeInstructions(recipeData.instructions || '')
-
     const recipe: RecipeInsert = {
       title: recipeData.title || 'Geïmporteerd Recept',
       slug,
@@ -721,7 +786,8 @@ export async function POST(request: NextRequest) {
       cook_time: recipeData.cook_time || null,
       servings_default: recipeData.servings || 4, // Default to 4 if not found
       difficulty: recipeData.difficulty || null, // Should be in English now (easy/medium/hard)
-      content_markdown: normalizedInstructions,
+      instructions_json: recipeData.instructions || null, // New structured format
+      content_markdown: null, // Legacy field - not used for new recipes
       labels: null, // Deprecated - now using category system
       source_name: recipeData.source || null,
       source_url: recipeData.source_url || null,

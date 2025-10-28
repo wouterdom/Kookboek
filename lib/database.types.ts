@@ -275,6 +275,7 @@ export interface Database {
           slug: string
           description: string | null
           content_markdown: string | null
+          instructions_json: Json | null
           prep_time: number | null
           cook_time: number | null
           servings_default: number
@@ -300,6 +301,7 @@ export interface Database {
           slug: string
           description?: string | null
           content_markdown?: string | null
+          instructions_json?: Json | null
           prep_time?: number | null
           cook_time?: number | null
           servings_default?: number
@@ -325,6 +327,7 @@ export interface Database {
           slug?: string
           description?: string | null
           content_markdown?: string | null
+          instructions_json?: Json | null
           prep_time?: number | null
           cook_time?: number | null
           servings_default?: number

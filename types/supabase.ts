@@ -8,6 +8,13 @@ export type Recipe = DatabaseType['public']['Tables']['recipes']['Row']
 export type RecipeInsert = DatabaseType['public']['Tables']['recipes']['Insert']
 export type RecipeUpdate = DatabaseType['public']['Tables']['recipes']['Update']
 
+// Instruction step type for structured instructions with optional sections
+export type InstructionStep = {
+  section: string | null  // Section name (e.g., "Het stoofvlees", "Voor de frieten") or null if no sections
+  step: string           // The instruction text
+  order_index: number    // Sequential ordering (0, 1, 2, 3...)
+}
+
 export type ParsedIngredient = DatabaseType['public']['Tables']['parsed_ingredients']['Row']
 export type ParsedIngredientInsert = DatabaseType['public']['Tables']['parsed_ingredients']['Insert']
 export type ParsedIngredientUpdate = DatabaseType['public']['Tables']['parsed_ingredients']['Update']

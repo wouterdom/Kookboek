@@ -155,11 +155,29 @@ export default function CookingModePage({
     )
   }
 
-  // Parse markdown instructions into steps if they exist
-  const parseInstructions = (markdown: string | null) => {
+  // Get instruction steps from either new format (instructions_json) or legacy format (content_markdown)
+  const getInstructionSteps = (recipe: any): Array<{ section: string | null; step: string; order_index: number }> => {
+    // Prefer new structured format
+    if (recipe?.instructions_json && Array.isArray(recipe.instructions_json)) {
+      return recipe.instructions_json
+    }
+
+    // Fallback to legacy markdown format
+    if (recipe?.content_markdown) {
+      const steps = parseInstructionsFromMarkdown(recipe.content_markdown)
+      return steps.map((step, index) => ({
+        section: null,
+        step,
+        order_index: index
+      }))
+    }
+
+    return []
+  }
+
+  const parseInstructionsFromMarkdown = (markdown: string | null): string[] => {
     if (!markdown) return []
 
-    // Try to split by numbered list (1. 2. 3.) or by double line breaks
     const lines = markdown.split('\n')
     const steps: string[] = []
     let currentStep = ''
@@ -183,7 +201,7 @@ export default function CookingModePage({
     return steps.length > 0 ? steps : [markdown]
   }
 
-  const instructionSteps = parseInstructions(recipe.content_markdown)
+  const instructionSteps = getInstructionSteps(recipe)
 
   const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0)
 
@@ -357,16 +375,30 @@ export default function CookingModePage({
 
               {instructionSteps.length > 0 ? (
                 <div className="space-y-6">
-                  {instructionSteps.map((step, index) => (
-                    <div key={index} className="flex gap-4">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
-                        {index + 1}
+                  {instructionSteps.map((stepObj, index) => {
+                    const step = typeof stepObj === 'string' ? stepObj : stepObj.step
+                    const section = typeof stepObj === 'object' ? stepObj.section : null
+                    const showSection = section && (index === 0 || instructionSteps[index - 1]?.section !== section)
+
+                    return (
+                      <div key={index}>
+                        {/* Show section heading when section changes */}
+                        {showSection && (
+                          <h3 className="mt-6 mb-4 text-lg font-semibold text-primary">
+                            {section}
+                          </h3>
+                        )}
+                        <div className="flex gap-4">
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <p className="leading-relaxed text-gray-700">{step}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="leading-relaxed text-gray-700">{step}</p>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 recipe.content_markdown && (
