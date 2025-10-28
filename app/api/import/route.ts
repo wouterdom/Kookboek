@@ -873,6 +873,24 @@ export async function POST(request: NextRequest) {
       uitgever
     )
 
+    // If we have an image_url, also add it to recipe_images table as primary
+    if (imageUrl) {
+      const { error: imageError } = await supabase
+        .from('recipe_images')
+        // @ts-ignore
+        .insert({
+          recipe_id: (insertedRecipe as any).id,
+          image_url: imageUrl,
+          is_primary: true,
+          display_order: 0
+        })
+
+      if (imageError) {
+        console.error('Error inserting recipe image:', imageError)
+        // Don't fail the whole import if image insertion fails
+      }
+    }
+
     return NextResponse.json({
       success: true,
       recipe: insertedRecipe,

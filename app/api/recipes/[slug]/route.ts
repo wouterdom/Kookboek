@@ -159,7 +159,68 @@ export async function DELETE(
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
     }
 
-    // Delete ingredients first (cascade should handle this, but being explicit)
+    // Fetch all images associated with this recipe
+    const { data: images, error: imagesError } = await supabase
+      .from('recipe_images')
+      .select('image_url')
+      .eq('recipe_id', (recipe as any).id)
+
+    // Delete individual image files from storage
+    if (images && images.length > 0) {
+      const imagePaths: string[] = []
+
+      for (const image of images as Array<{ image_url: string }>) {
+        try {
+          // Extract path from URL
+          const urlObj = new URL(image.image_url)
+          const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/recipe-images\/(.+)/)
+          if (pathMatch && pathMatch[1]) {
+            const path = decodeURIComponent(pathMatch[1])
+            imagePaths.push(path)
+          }
+        } catch (error) {
+          console.error('Error parsing image URL:', error)
+        }
+      }
+
+      // Delete all image files
+      if (imagePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('recipe-images')
+          .remove(imagePaths)
+
+        if (storageError) {
+          console.error('Error deleting images from storage:', storageError)
+          // Continue with deletion even if storage cleanup fails
+        }
+      }
+    }
+
+    // Try to delete the entire recipe folder from storage
+    // This handles any leftover files or AI-generated images
+    try {
+      const { data: folderFiles } = await supabase.storage
+        .from('recipe-images')
+        .list(slug)
+
+      if (folderFiles && folderFiles.length > 0) {
+        const folderPaths = folderFiles.map(file => `${slug}/${file.name}`)
+        await supabase.storage
+          .from('recipe-images')
+          .remove(folderPaths)
+      }
+    } catch (error) {
+      console.error('Error cleaning up recipe folder:', error)
+      // Continue with deletion even if folder cleanup fails
+    }
+
+    // Delete recipe_images records from database
+    await supabase
+      .from('recipe_images')
+      .delete()
+      .eq('recipe_id', (recipe as any).id)
+
+    // Delete ingredients (cascade should handle this, but being explicit)
     await supabase
       .from('parsed_ingredients')
       .delete()

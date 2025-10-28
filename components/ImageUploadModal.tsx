@@ -178,10 +178,17 @@ export function ImageUploadModal({
           }
           setPendingImages(prev => [...prev, newPending])
 
-          // If this is the first image overall, set as pending primary
-          if (allImages.length === 0) {
+          // Check if this should be the primary: first overall image OR no existing primary
+          const totalExistingImages = images.length + pendingImages.length
+          const hasExistingPrimary = images.some(img => img.is_primary) || pendingPrimaryId !== null
+
+          if (totalExistingImages === 0 || !hasExistingPrimary) {
             setPendingPrimaryId(newPending.tempId)
           }
+
+          // Navigate to the newly added image
+          const newIndex = totalExistingImages
+          setCurrentImageIndex(newIndex)
         }
         setUploadProgress(0)
       } else {
@@ -281,9 +288,18 @@ export function ImageUploadModal({
           }
           setPendingImages(prev => [...prev, newPending])
 
-          if (allImages.length === 0) {
+          // Check if this should be the primary: first overall image OR no existing primary
+          const totalExistingImages = images.length + pendingImages.length
+          const hasExistingPrimary = images.some(img => img.is_primary) || pendingPrimaryId !== null
+
+          if (totalExistingImages === 0 || !hasExistingPrimary) {
             setPendingPrimaryId(newPending.tempId)
           }
+
+          // Navigate to the newly added image
+          // It will be at the end of allImages array
+          const newIndex = totalExistingImages
+          setCurrentImageIndex(newIndex)
         }
         setUploadProgress(0)
       } else {
