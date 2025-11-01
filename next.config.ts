@@ -36,8 +36,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'wotis.tail878d82.ts.net',
-        port: '8443',
+        hostname: 'api.wotis-cloud.com',
         pathname: '/storage/v1/object/public/**',
       },
     ],

@@ -80,3 +80,6 @@ CLAUDE.md
 
 # Playwright MCP screenshots and artifacts
 .playwright-mcp/
+
+#documentation
+docs/**
