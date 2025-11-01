@@ -81,5 +81,7 @@ CLAUDE.md
 # Playwright MCP screenshots and artifacts
 .playwright-mcp/
 
-#documentation
+#documentation (but allow Bugs folder)
 docs/**
+!docs/Bugs/
+!docs/Bugs/**
