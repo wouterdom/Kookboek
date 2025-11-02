@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.png",
   },
-  manifest: "/manifest.json",
+  // manifest: "/manifest.json", // Removed - using manual <link> with crossOrigin instead
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -74,6 +74,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="nl" className={`${inter.variable} ${montserrat.variable}`}>
+      <head>
+        {/* Fix for PWA manifest with Cloudflare Access - crossorigin required */}
+        <link rel="manifest" href="/manifest.json" crossOrigin="use-credentials" />
+      </head>
       <body className="min-h-screen antialiased" suppressHydrationWarning>
         <CategoriesProvider>
           <GroceryCountProvider>
