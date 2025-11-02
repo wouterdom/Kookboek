@@ -5,8 +5,12 @@ import { Database } from '@/types/supabase'
 export async function createClient() {
   const cookieStore = await cookies()
 
+  // Use internal Supabase URL for server-side (Docker container can't reach Cloudflare Tunnel URLs)
+  // Falls back to public URL for local development
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
