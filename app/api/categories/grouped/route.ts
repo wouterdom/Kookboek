@@ -20,6 +20,16 @@ export async function GET() {
     return NextResponse.json({ error: categoriesError.message }, { status: 500 })
   }
 
+  // Handle null/empty data - DEFENSIVE FIX
+  if (!categories || categories.length === 0) {
+    console.error('Categories query returned null or empty:', { categories, categoriesError })
+    return NextResponse.json({}, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
+      }
+    })
+  }
+
   // Group categories by type
   const grouped: CategoriesByType = {}
 
