@@ -30,14 +30,16 @@ export function GroceryCountProvider({ children }: GroceryCountProviderProps) {
 
   const fetchCount = async () => {
     try {
-      const { count, error } = await supabase
-        .from('grocery_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_checked', false)
+      // Use API route instead of direct Supabase call (avoids CORS)
+      const response = await fetch('/api/groceries')
 
-      if (!error && count !== null) {
-        setUncheckedCount(count)
+      if (!response.ok) {
+        console.error('Error fetching grocery count:', await response.text())
+        return
       }
+
+      const data = await response.json()
+      setUncheckedCount(data.unchecked || 0)
     } catch (error) {
       console.error('Error fetching grocery count:', error)
     } finally {
