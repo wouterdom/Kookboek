@@ -64,7 +64,7 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json()
 
-      const recipeIds = new Set(
+      const recipeIds = new Set<string>(
         (data || [])
           .map((item: any) => item.recipe_id)
           .filter((id: string | null): id is string => id !== null)
