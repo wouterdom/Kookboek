@@ -9,6 +9,9 @@ export async function GET(
 ) {
   try {
     const { slug } = await params
+    const { searchParams } = new URL(request.url)
+    const includeIngredients = searchParams.get('includeIngredients') === 'true'
+
     const supabase = await createClient()
 
     const { data: recipe, error } = await supabase
@@ -19,6 +22,17 @@ export async function GET(
 
     if (error) {
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
+    }
+
+    // Optionally include ingredients
+    if (includeIngredients) {
+      const { data: ingredients } = await supabase
+        .from('parsed_ingredients')
+        .select('*')
+        .eq('recipe_id', recipe.id)
+        .order('order_index')
+
+      return NextResponse.json({ ...recipe, ingredients: ingredients || [] })
     }
 
     return NextResponse.json(recipe)

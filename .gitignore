@@ -26,12 +26,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # Local env files
-.env
-.env*.local
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
 
 # Vercel
 .vercel
@@ -85,3 +80,6 @@ CLAUDE.md
 docs/**
 !docs/Bugs/
 !docs/Bugs/**
+DEPLOYMENT-FIX.md
+.gitignore
+ENV-SETUP.md

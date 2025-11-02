@@ -16,7 +16,6 @@ import {
   LayoutGrid,
   ExternalLink,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { Recipe, ParsedIngredient } from "@/types/supabase"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -29,7 +28,6 @@ export default function CookingModePage({
   params: Promise<{ slug: string }>
 }) {
   const router = useRouter()
-  const supabase = createClient()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [ingredients, setIngredients] = useState<ParsedIngredient[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,38 +54,28 @@ export default function CookingModePage({
     }
   }, [loading, recipe])
 
-  // Fetch recipe and ingredients
+  // Fetch recipe and ingredients via API route (no CORS issues)
   const loadRecipe = useCallback(async () => {
     if (!slug) return
 
     setLoading(true)
 
     try {
-      // Fetch recipe
-      const { data: recipeData, error: recipeError } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('slug', slug)
-        .single()
+      // Fetch recipe with ingredients via API route
+      const response = await fetch(`/api/recipes/${slug}?includeIngredients=true`)
 
-      if (recipeError) throw recipeError
+      if (!response.ok) {
+        throw new Error('Recipe not found')
+      }
 
-      if (recipeData) {
-        const recipe = recipeData as Recipe
-        setRecipe(recipe)
-        setServings(recipe.servings_default)
-        setBaseServings(recipe.servings_default)
+      const data = await response.json()
 
-        // Fetch ingredients
-        const { data: ingredientsData, error: ingredientsError } = await supabase
-          .from('parsed_ingredients')
-          .select('*')
-          .eq('recipe_id', recipe.id)
-          .order('order_index')
+      setRecipe(data)
+      setServings(data.servings_default)
+      setBaseServings(data.servings_default)
 
-        if (!ingredientsError && ingredientsData) {
-          setIngredients(ingredientsData)
-        }
+      if (data.ingredients) {
+        setIngredients(data.ingredients)
       }
     } catch (error) {
       console.error('Error fetching recipe:', error)
@@ -95,7 +83,7 @@ export default function CookingModePage({
     } finally {
       setLoading(false)
     }
-  }, [slug, supabase, router])
+  }, [slug, router])
 
   useEffect(() => {
     loadRecipe()
