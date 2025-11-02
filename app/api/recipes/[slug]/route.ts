@@ -20,7 +20,7 @@ export async function GET(
       .eq('slug', slug)
       .single()
 
-    if (error) {
+    if (error || !recipe) {
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
     }
 
@@ -29,10 +29,10 @@ export async function GET(
       const { data: ingredients } = await supabase
         .from('parsed_ingredients')
         .select('*')
-        .eq('recipe_id', recipe.id)
+        .eq('recipe_id', (recipe as any).id)
         .order('order_index')
 
-      return NextResponse.json({ ...recipe, ingredients: ingredients || [] })
+      return NextResponse.json({ ...(recipe as any), ingredients: ingredients || [] })
     }
 
     return NextResponse.json(recipe)
