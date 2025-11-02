@@ -54,21 +54,20 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
       // Get all recipes in the current week (regardless of day assignment)
       const weekDate = formatDateForDB(currentWeek)
 
-      const { data, error } = await supabase
-        .from('weekly_menu_items')
-        .select('recipe_id')
-        .eq('week_date', weekDate)
+      // Use API route instead of direct Supabase call (avoids CORS)
+      const response = await fetch(`/api/weekmenu?week=${weekDate}`)
 
-      if (error) {
-        console.error('Error fetching weekmenu items:', error)
+      if (!response.ok) {
+        console.error('Error fetching weekmenu items:', await response.text())
         return
       }
 
-      const typedData = data as Array<Pick<DBWeeklyMenuItem, 'recipe_id'>> | null
+      const data = await response.json()
+
       const recipeIds = new Set(
-        (typedData || [])
-          .map(item => item.recipe_id)
-          .filter((id): id is string => id !== null)
+        (data || [])
+          .map((item: any) => item.recipe_id)
+          .filter((id: string | null): id is string => id !== null)
       )
       setBookmarkedRecipeIds(recipeIds)
     } catch (error) {
@@ -76,7 +75,7 @@ export function WeekMenuProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [currentWeek, supabase])
+  }, [currentWeek])
 
   useEffect(() => {
     refreshBookmarks()
