@@ -118,14 +118,14 @@ export default function RecipeDetailPage({
     setLoading(true)
 
     try {
-      // Fetch recipe
-      const { data: recipeData, error: recipeError } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('slug', slug)
-        .single()
+      // Fetch recipe with ingredients via API route (avoids CORS)
+      const recipeResponse = await fetch(`/api/recipes/${slug}?includeIngredients=true`)
 
-      if (recipeError) throw recipeError
+      if (!recipeResponse.ok) {
+        throw new Error('Recipe not found')
+      }
+
+      const recipeData = await recipeResponse.json()
 
       if (recipeData) {
         const recipe = recipeData as Recipe
@@ -136,6 +136,11 @@ export default function RecipeDetailPage({
         setNotes(recipe.notes || '')
         setLabels(recipe.labels || [])
 
+        // Set ingredients if included in response
+        if (recipeData.ingredients) {
+          setIngredients(recipeData.ingredients)
+        }
+
         // Fetch recipe categories
         const categoriesResponse = await fetch(`/api/recipes/${slug}/categories`)
         if (categoriesResponse.ok) {
@@ -143,31 +148,23 @@ export default function RecipeDetailPage({
           setRecipeCategoryIds(categoriesData.map((rc: any) => rc.category_id))
         }
 
-        // Fetch ingredients
-        const { data: ingredientsData, error: ingredientsError } = await supabase
-          .from('parsed_ingredients')
-          .select('*')
-          .eq('recipe_id', recipe.id)
-          .order('order_index')
+        // Fetch all images from recipe_images table via API
+        const imagesResponse = await fetch(`/api/recipes/${slug}/images`)
+        if (imagesResponse.ok) {
+          const imagesData = await imagesResponse.json()
 
-        if (!ingredientsError && ingredientsData) {
-          setIngredients(ingredientsData)
-        }
-
-        // Fetch all images from recipe_images table
-        const { data: imagesData, error: imagesError } = await supabase
-          .from('recipe_images')
-          .select('id, image_url, is_primary')
-          .eq('recipe_id', recipe.id)
-          .order('display_order', { ascending: true })
-
-        if (!imagesError && imagesData && imagesData.length > 0) {
-          setRecipeImages(imagesData as any)
-          // Find primary image index
-          const primaryIndex = (imagesData as any[]).findIndex((img: any) => img.is_primary)
-          setCurrentImageIndex(primaryIndex >= 0 ? primaryIndex : 0)
+          if (imagesData && imagesData.length > 0) {
+            setRecipeImages(imagesData)
+            // Find primary image index
+            const primaryIndex = imagesData.findIndex((img: any) => img.is_primary)
+            setCurrentImageIndex(primaryIndex >= 0 ? primaryIndex : 0)
+          } else if (recipe.image_url) {
+            // Fallback: if no images in recipe_images but recipe.image_url exists, create temporary entry
+            setRecipeImages([{ id: 'legacy', image_url: recipe.image_url, is_primary: true }])
+            setCurrentImageIndex(0)
+          }
         } else if (recipe.image_url) {
-          // Fallback: if no images in recipe_images but recipe.image_url exists, create temporary entry
+          // Fallback if images API fails
           setRecipeImages([{ id: 'legacy', image_url: recipe.image_url, is_primary: true }])
           setCurrentImageIndex(0)
         }
@@ -178,7 +175,7 @@ export default function RecipeDetailPage({
     } finally {
       setLoading(false)
     }
-  }, [slug, supabase, router])
+  }, [slug, router])
 
   useEffect(() => {
     loadRecipe()
